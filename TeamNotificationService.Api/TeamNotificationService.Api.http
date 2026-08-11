@@ -1,0 +1,6 @@
+@TeamNotificationService.Api_HostAddress = http://localhost:5258
+
+GET {{TeamNotificationService.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

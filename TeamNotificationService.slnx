@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="TeamNotificationService.Api/TeamNotificationService.Api.csproj" />
+  <Project Path="TeamNotificationService.Application/TeamNotificationService.Application.csproj" />
+  <Project Path="TeamNotificationService.Domain/TeamNotificationService.Domain.csproj" />
+  <Project Path="TeamNotificationService.Infrastructure/TeamNotificationService.Infrastructure.csproj" />
+</Solution>
