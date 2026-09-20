@@ -7,6 +7,10 @@ using Microsoft.EntityFrameworkCore;
 using TeamNotificationService.Infrastructure.Persistence;
 using TeamNotificationService.Application.Interfaces.Repositories;
 using TeamNotificationService.Infrastructure.Repositories;
+using TeamNotificationService.Application.Interfaces.Services.Email;
+using TeamNotificationService.Infrastructure.Services;
+using TeamNotificationService.Application.Interfaces.Contexts;
+using TeamNotificationService.Infrastructure.Contexts;
 
 namespace TeamNotificationService.Infrastructure;
 
@@ -35,8 +39,50 @@ public static class DependencyInjection
                 options => !string.IsNullOrWhiteSpace(options.VirtualHost),
                 "RabbitMq VirtualHost is required.")
             .Validate(
-                options => !string.IsNullOrWhiteSpace(options.Exchange),
-                "RabbitMq Exchange is required.")
+                options => !string.IsNullOrWhiteSpace(options.Consumer.Name),
+                "RabbitMq Consumer:Name is required.")
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.Consumer.Queue),
+                "RabbitMq Consumer:Queue is required.")
+            .Validate(
+                options => options.Consumer.PrefetchCount > 0,
+                "RabbitMq Consumer:PrefetchCount must be greater than zero.")
+            .Validate(
+                options => options.Consumer.ReconnectDelaySeconds > 0,
+                "RabbitMq Consumer:ReconnectDelaySeconds must be greater than zero.")
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.Consumer.RetryAttemptHeader),
+                "RabbitMq Consumer:RetryAttemptHeader is required.")
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.Topology.RetryExchange),
+                "RabbitMq Topology:RetryExchange is required.")
+            .Validate(
+                options => options.Topology.RetryQueues.Count == 3
+                    && options.Topology.RetryQueues.All(retry =>
+                        !string.IsNullOrWhiteSpace(retry.Queue)
+                        && !string.IsNullOrWhiteSpace(retry.RoutingKey)
+                        && retry.MessageTtlMilliseconds > 0),
+                "RabbitMq Topology:RetryQueues must define the three delayed retry queues.")
+            .ValidateOnStart();
+
+        services
+            .AddOptions<EmailOptions>()
+            .BindConfiguration(EmailOptions.SectionName)
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Host), "Email Host is required.")
+            .Validate(options => options.Port is > 0 and <= 65535, "Email Port must be between 1 and 65535.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Username), "Email Username is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Password), "Email Password is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.DefaultFromEmail), "Email DefaultFromEmail is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.DefaultFromName), "Email DefaultFromName is required.")
+            .Validate(options => options.QueueCapacity > 0, "Email QueueCapacity must be greater than zero.")
+            .ValidateOnStart();
+
+        services
+            .AddOptions<InternalJwtOptions>()
+            .BindConfiguration(InternalJwtOptions.SectionName)
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "InternalJwt Issuer is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "InternalJwt Audience is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.PublicKeyPem), "InternalJwt PublicKeyPem is required.")
             .ValidateOnStart();
 
         return services;
@@ -46,6 +92,9 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+
         // Database
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Database connection string is not configured.");
@@ -75,6 +124,14 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<RabbitMqConnection>();
+        services.AddSingleton<NotificationPersistence>();
+        services.AddSingleton<NotificationBellSender>();
+        services.AddSingleton<NotificationEmailSender>();
+        services.AddHostedService<NotificationConsumer>();
+
+        services.AddSingleton<EmailService>();
+        services.AddSingleton<IEmailService>(sp => sp.GetRequiredService<EmailService>());
+        services.AddHostedService(sp => sp.GetRequiredService<EmailService>());
 
         // Repositories
         services.AddScoped<INotificationRepository, NotificationRepository>();

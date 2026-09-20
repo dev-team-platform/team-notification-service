@@ -1,18 +1,17 @@
 CREATE TABLE notifications (
     id UUID PRIMARY KEY,
-    source_app VARCHAR(255) NOT NULL,
-    event_type VARCHAR(255) NOT NULL,
     title VARCHAR(255) NULL,
     content TEXT NULL,
     data JSONB NULL,
+    created_by_id UUID NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX ix_notifications_source_app_event_type
-ON notifications (source_app, event_type);
-
 CREATE INDEX ix_notifications_created_at
 ON notifications (created_at DESC);
+
+CREATE INDEX ix_notifications_created_by_id
+ON notifications (created_by_id);
 
 
 CREATE TABLE notification_recipients (
@@ -80,3 +79,6 @@ UNIQUE (template_key);
 
 CREATE INDEX ix_notification_deliveries_recipient_id
 ON notification_deliveries (notification_recipient_id);
+
+CREATE UNIQUE INDEX uq_notification_deliveries_recipient_channel
+ON notification_deliveries (notification_recipient_id, channel);

@@ -16,16 +16,6 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .HasColumnName("id")
             .IsRequired();
 
-        builder.Property(x => x.SourceApp)
-            .HasColumnName("source_app")
-            .IsRequired()
-            .HasMaxLength(255);
-
-        builder.Property(x => x.EventType)
-            .HasColumnName("event_type")
-            .IsRequired()
-            .HasMaxLength(255);
-
         builder.Property(x => x.Title)
             .HasColumnName("title")
             .HasMaxLength(255);
@@ -38,15 +28,19 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .HasColumnName("data")
             .HasColumnType("jsonb");
 
+        builder.Property(x => x.CreatedById)
+            .HasColumnName("created_by_id")
+            .IsRequired();
+
         builder.Property(x => x.CreatedAt)
             .HasColumnName("created_at")
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        builder.HasIndex(x => new { x.SourceApp, x.EventType })
-            .HasDatabaseName("ix_notifications_source_app_event_type");
-
         builder.HasIndex(x => x.CreatedAt)
             .HasDatabaseName("ix_notifications_created_at");
+
+        builder.HasIndex(x => x.CreatedById)
+            .HasDatabaseName("ix_notifications_created_by_id");
     }
 }

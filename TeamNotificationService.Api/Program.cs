@@ -3,8 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.OpenApi;
 using Serilog;
+using TeamNotificationService.Api.Extensions;
+using TeamNotificationService.Api.Hubs;
+using TeamNotificationService.Application.Interfaces.Messaging;
 using TeamNotificationService.Application;
 using TeamNotificationService.Infrastructure;
+using TeamNotificationService.Api.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,21 +26,19 @@ var exposeApiDocs =
 builder.Services.AddAppOptions(builder.Configuration);
 builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInternalJwtAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IRealtimeNotificationPublisher, SignalRRealtimeNotificationPublisher>();
 
-builder.Services.AddControllersWithViews(options =>
-{
-    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
-});
+builder.Services.AddControllers();
 
 builder.Services.AddApiVersioning(options =>
 {
     options.DefaultApiVersion = new ApiVersion(1, 0);
     options.AssumeDefaultVersionWhenUnspecified = true;
     options.ReportApiVersions = true;
-
-    options.ApiVersionReader =
-        new UrlSegmentApiVersionReader();
+    options.ApiVersionReader = new UrlSegmentApiVersionReader();
 });
 
 builder.Services.AddVersionedApiExplorer(options =>
@@ -111,6 +113,7 @@ if (isDeployedEnvironment)
 }
 
 app.UseSerilogRequestLogging();
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 if (isDeployedEnvironment)
 {
@@ -131,5 +134,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

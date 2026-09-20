@@ -72,5 +72,10 @@ public class NotificationDeliveryConfiguration : IEntityTypeConfiguration<Notifi
 
         builder.HasIndex(x => x.NotificationRecipientId)
             .HasDatabaseName("ix_notification_deliveries_recipient_id");
+
+        builder.HasIndex(x => new { x.NotificationRecipientId, x.Channel })
+            .HasDatabaseName("uq_notification_deliveries_recipient_channel")
+            .IsUnique();
+
     }
 }
