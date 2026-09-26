@@ -1,0 +1,6 @@
+ALTER TABLE notification_recipients
+ADD COLUMN user_identity_subject VARCHAR(255) NOT NULL;
+
+ALTER TABLE notification_recipients
+ADD CONSTRAINT uq_notification_recipients_user_identity_subject_notification_id
+UNIQUE (user_identity_subject, notification_id);
