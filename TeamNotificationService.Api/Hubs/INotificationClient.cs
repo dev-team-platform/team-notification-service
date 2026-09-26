@@ -1,8 +1,8 @@
-using TeamNotificationService.Application.Models;
+using TeamNotificationService.Application.Models.Notifications;
 
 namespace TeamNotificationService.Api.Hubs;
 
 public interface INotificationClient
 {
-    Task BellNotification(BellNotificationMessage notification);
+    Task BellNotification(SendBellNotificationMessage notification);
 }

@@ -1,11 +1,13 @@
+using TeamNotificationService.Domain.Enums;
+
 namespace TeamNotificationService.Domain.Entities;
 
 public class NotificationDelivery
 {
     public Guid Id { get; set; }
     public Guid NotificationRecipientId { get; set; }
-    public string Channel { get; set; } = null!;
-    public string Status { get; set; } = null!;
+    public ChannelType Channel { get; set; }
+    public DeliveryStatus Status { get; set; }
     public string? Destination { get; set; }
     public string? TemplateKey { get; set; }
     public DateTimeOffset? SentAt { get; set; }

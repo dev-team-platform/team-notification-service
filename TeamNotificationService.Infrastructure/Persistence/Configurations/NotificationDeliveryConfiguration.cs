@@ -22,11 +22,13 @@ public class NotificationDeliveryConfiguration : IEntityTypeConfiguration<Notifi
 
         builder.Property(x => x.Channel)
             .HasColumnName("channel")
+            .HasConversion<string>()
             .IsRequired()
             .HasMaxLength(50);
 
         builder.Property(x => x.Status)
             .HasColumnName("status")
+            .HasConversion<string>()
             .IsRequired()
             .HasMaxLength(50);
 

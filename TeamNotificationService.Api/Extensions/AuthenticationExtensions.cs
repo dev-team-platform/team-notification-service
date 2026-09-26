@@ -16,8 +16,10 @@ public static class AuthenticationExtensions
             .Get<InternalJwtOptions>()
             ?? throw new InvalidOperationException("InternalJwt configuration is required.");
 
+        var publicKeyPem = File.ReadAllText(internalJwt.PublicKeyPemPath);
+
         var rsa = RSA.Create();
-        rsa.ImportFromPem(internalJwt.PublicKeyPem);
+        rsa.ImportFromPem(publicKeyPem);
         var signingKey = new RsaSecurityKey(rsa);
 
         services

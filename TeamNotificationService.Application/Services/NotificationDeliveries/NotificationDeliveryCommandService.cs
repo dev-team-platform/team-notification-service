@@ -1,9 +1,10 @@
 using TeamNotificationService.Application.Interfaces.Repositories;
 using TeamNotificationService.Application.Interfaces.Services.NotificationDeliveries;
 using TeamNotificationService.Application.Models.Notifications;
-using TeamNotificationService.Domain.Constants;
 using TeamNotificationService.Domain.Entities;
+using TeamNotificationService.Domain.Enums;
 using TeamNotificationService.Domain.Exceptions;
+using TeamNotificationService.Domain.Utils;
 
 namespace TeamNotificationService.Application.Services.NotificationDeliveries;
 
@@ -27,18 +28,13 @@ public class NotificationDeliveryCommandService : INotificationDeliveryCommandSe
         UpsertNotificationDeliveryRequestModel requestModel,
         CancellationToken cancellationToken = default)
     {
-        if (requestModel.Status != DeliveryStatus.Delivered && requestModel.Status != DeliveryStatus.Failed)
-        {
-            throw new UnprocessableEntityException("Delivery status is invalid.", new Dictionary<string, object>
-            {
-                ["Status"] = requestModel.Status
-            });
-        }
+        var parsedStatus = EnumUtils.Parse<DeliveryStatus>(requestModel.Status);
+        var parsedChannel = EnumUtils.Parse<ChannelType>(requestModel.Channel);
 
         var delivery = await _notificationDeliveryRepository.FindFirstByConditionAsync(
                 q => q.Where(item =>
                         item.NotificationRecipientId == requestModel.NotificationRecipientId &&
-                        item.Channel == requestModel.Channel),
+                        item.Channel == parsedChannel),
                 trackChanges: true,
                 cancellationToken: cancellationToken);
 
@@ -50,24 +46,24 @@ public class NotificationDeliveryCommandService : INotificationDeliveryCommandSe
             {
                 Id = Guid.CreateVersion7(),
                 NotificationRecipientId = requestModel.NotificationRecipientId,
-                Channel = requestModel.Channel,
+                Channel = parsedChannel,
                 CreatedAt = now
             };
             _notificationDeliveryRepository.Add(delivery);
         }
 
-        delivery.Status = requestModel.Status;
+        delivery.Status = parsedStatus;
         delivery.Destination = requestModel.Destination ?? delivery.Destination;
         delivery.UpdatedAt = now;
 
-        if (string.Equals(requestModel.Status, DeliveryStatus.Delivered, StringComparison.OrdinalIgnoreCase))
+        if (parsedStatus == DeliveryStatus.Delivered)
         {
             delivery.SentAt = now;
             delivery.DeliveredAt = now;
             delivery.FailedAt = null;
             delivery.LastError = null;
         }
-        else if (string.Equals(requestModel.Status, DeliveryStatus.Failed, StringComparison.OrdinalIgnoreCase))
+        else if (parsedStatus == DeliveryStatus.Failed)
         {
             delivery.FailedAt = now;
             delivery.LastError = requestModel.LastError is { Length: > 5000 }
