@@ -2,6 +2,6 @@ namespace TeamNotificationService.Domain.Enums;
 
 public enum ChannelType
 {
-    Bell,
-    Email
+    Bell = 1,
+    Email = 2
 }

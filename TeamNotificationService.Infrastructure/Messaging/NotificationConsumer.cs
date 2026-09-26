@@ -8,7 +8,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using TeamNotificationService.Application.Interfaces.Messaging;
 using TeamNotificationService.Application.Interfaces.Repositories;
-using TeamNotificationService.Application.Interfaces.Services.Email;
+using TeamNotificationService.Application.Interfaces.Services.Emails;
 using TeamNotificationService.Application.Interfaces.Services.NotificationDeliveries;
 using TeamNotificationService.Application.Models.Emails;
 using TeamNotificationService.Application.Models.Notifications;
@@ -400,6 +400,7 @@ public sealed class NotificationPersistence
             Id = Guid.CreateVersion7(),
             NotificationId = notification.Id,
             UserId = recipient.UserId,
+            UserIdentitySubject = recipient.IdentitySubject,
             CreatedAt = now
         }).ToList();
 

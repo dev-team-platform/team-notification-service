@@ -2,6 +2,6 @@ namespace TeamNotificationService.Domain.Enums;
 
 public enum DeliveryStatus
 {
-    Delivered,
-    Failed,
+    Delivered = 1,
+    Failed = 2,
 }

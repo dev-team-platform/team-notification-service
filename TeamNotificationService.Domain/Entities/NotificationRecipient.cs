@@ -5,6 +5,7 @@ public class NotificationRecipient
     public Guid Id { get; set; }
     public Guid NotificationId { get; set; }
     public Guid UserId { get; set; }
+    public string UserIdentitySubject { get; set; } = null!;
     public bool IsRead { get; set; }
     public DateTimeOffset? ReadAt { get; set; }
     public bool IsArchived { get; set; }

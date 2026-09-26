@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using TeamNotificationService.Infrastructure.Persistence;
 using TeamNotificationService.Application.Interfaces.Repositories;
 using TeamNotificationService.Infrastructure.Repositories;
-using TeamNotificationService.Application.Interfaces.Services.Email;
+using TeamNotificationService.Application.Interfaces.Services.Emails;
 using TeamNotificationService.Infrastructure.Services;
 using TeamNotificationService.Application.Interfaces.Contexts;
 using TeamNotificationService.Infrastructure.Contexts;
@@ -86,14 +86,6 @@ public static class DependencyInjection
             .Validate(options => options.QueueCapacity > 0, "Email QueueCapacity must be greater than zero.")
             .ValidateOnStart();
 
-        services
-            .AddOptions<InternalJwtOptions>()
-            .BindConfiguration(InternalJwtOptions.SectionName)
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "InternalJwt Issuer is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "InternalJwt Audience is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.PublicKeyPemPath), "InternalJwt PublicKeyPem is required.")
-            .ValidateOnStart();
-
         return services;
     }
 
@@ -147,6 +139,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
         services.AddScoped<INotificationDeliveryRepository, NotificationDeliveryRepository>();
         services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();
+        services.AddScoped<IHealthCheckRepository, HealthCheckRepository>();
 
         return services;
     }

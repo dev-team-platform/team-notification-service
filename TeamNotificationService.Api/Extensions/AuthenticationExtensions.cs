@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography;
-using TeamNotificationService.Infrastructure.Options;
+using TeamNotificationService.Api.Options;
 
 namespace TeamNotificationService.Api.Extensions;
 
@@ -11,10 +11,17 @@ public static class AuthenticationExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services
+            .AddOptions<InternalJwtOptions>()
+            .BindConfiguration(InternalJwtOptions.SectionName)
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "InternalJwt Issuer is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "InternalJwt Audience is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.PublicKeyPemPath), "InternalJwt PublicKeyPem is required.")
+            .ValidateOnStart();
+
         var internalJwt = configuration
             .GetRequiredSection(InternalJwtOptions.SectionName)
-            .Get<InternalJwtOptions>()
-            ?? throw new InvalidOperationException("InternalJwt configuration is required.");
+            .Get<InternalJwtOptions>()!;
 
         var publicKeyPem = File.ReadAllText(internalJwt.PublicKeyPemPath);
 

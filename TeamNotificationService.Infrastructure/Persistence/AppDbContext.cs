@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TeamNotificationService.Application.Interfaces.Repositories;
 using TeamNotificationService.Domain.Entities;
+using TeamNotificationService.Infrastructure.Persistence.Extensions;
 
 namespace TeamNotificationService.Infrastructure.Persistence;
 
@@ -20,5 +21,17 @@ public class AppDbContext : DbContext, IUnitOfWork
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
         base.OnModelCreating(modelBuilder);
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+        {
+            throw ex.ToConflictException(this);
+        }
     }
 }

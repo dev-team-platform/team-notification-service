@@ -16,11 +16,12 @@ public static class EnumUtils
             return result;
         }
 
-        throw new UnprocessableEntityException($"'{value}' is not a valid value for enum of type {typeof(T).Name}",
-            new Dictionary<string, object>
+        throw new UnprocessableEntityException(
+            "This is not a valid value for the enum.",
+            new Dictionary<string, object?>
             {
-                ["EnumType"] = typeof(T).Name,
-                ["Value"] = value
+                ["enumType"] = typeof(T).Name,
+                ["value"] = value
             });
     }
 
@@ -33,11 +34,12 @@ public static class EnumUtils
 
         if (!Enum.IsDefined(typeof(T), enumValue))
         {
-            throw new UnprocessableEntityException($"'{enumValue}' is not a valid value for enum of type {typeof(T).Name}",
-                new Dictionary<string, object>
+            throw new UnprocessableEntityException(
+                "This is not a valid value for the enum.",
+                new Dictionary<string, object?>
                 {
-                    ["EnumType"] = typeof(T).Name,
-                    ["EnumValue"] = enumValue
+                    ["enumType"] = typeof(T).Name,
+                    ["enumValue"] = enumValue
                 });
         }
 
