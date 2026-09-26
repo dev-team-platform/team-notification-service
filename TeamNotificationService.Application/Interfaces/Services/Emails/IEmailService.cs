@@ -1,6 +1,6 @@
 using TeamNotificationService.Application.Models.Emails;
 
-namespace TeamNotificationService.Application.Interfaces.Services.Email;
+namespace TeamNotificationService.Application.Interfaces.Services.Emails;
 
 /// <summary>
 /// Queues email for asynchronous delivery by Notification Service.

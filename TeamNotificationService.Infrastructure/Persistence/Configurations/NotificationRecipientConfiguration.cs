@@ -24,6 +24,11 @@ public class NotificationRecipientConfiguration : IEntityTypeConfiguration<Notif
             .HasColumnName("user_id")
             .IsRequired();
 
+        builder.Property(x => x.UserIdentitySubject)
+            .HasColumnName("user_identity_subject")
+            .HasMaxLength(255)
+            .IsRequired();
+
         builder.Property(x => x.IsRead)
             .HasColumnName("is_read")
             .IsRequired()
@@ -53,6 +58,10 @@ public class NotificationRecipientConfiguration : IEntityTypeConfiguration<Notif
 
         builder.HasIndex(x => new { x.UserId, x.NotificationId })
             .HasDatabaseName("uq_notification_recipients_user_id_notification_id")
+            .IsUnique();
+
+        builder.HasIndex(x => new { x.UserIdentitySubject, x.NotificationId })
+            .HasDatabaseName("uq_notification_recipients_user_identity_subject_notification_id")
             .IsUnique();
 
         builder.HasIndex(x => new { x.UserId, x.CreatedAt })

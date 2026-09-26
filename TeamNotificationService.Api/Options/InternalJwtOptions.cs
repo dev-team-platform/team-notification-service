@@ -1,4 +1,4 @@
-namespace TeamNotificationService.Infrastructure.Options;
+namespace TeamNotificationService.Api.Options;
 
 public class InternalJwtOptions
 {

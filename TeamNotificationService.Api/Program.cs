@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.OpenApi;
 using Serilog;
+using TeamNotificationService.Api.Constants;
 using TeamNotificationService.Api.Extensions;
 using TeamNotificationService.Api.Hubs;
 using TeamNotificationService.Application.Interfaces.Messaging;
 using TeamNotificationService.Application;
 using TeamNotificationService.Infrastructure;
 using TeamNotificationService.Api.Middlewares;
+using TeamNotificationService.Application.Interfaces.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +29,7 @@ builder.Services.AddAppOptions(builder.Configuration);
 builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddInternalJwtAuthentication(builder.Configuration);
+builder.Services.AddNotificationRateLimiter(builder.Configuration);
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IRealtimeNotificationPublisher, SignalRRealtimeNotificationPublisher>();
@@ -107,6 +110,13 @@ if (isDeployedEnvironment)
 
 var app = builder.Build();
 
+// Warm up the application by performing a health check before accepting requests
+using (var scope = app.Services.CreateScope())
+{
+    var healthCheckService = scope.ServiceProvider.GetRequiredService<IHealthCheckService>();
+    await healthCheckService.HealthCheckAsync();
+}
+
 if (isDeployedEnvironment)
 {
     app.UseForwardedHeaders();
@@ -130,10 +140,12 @@ app.UseRouting();
 
 app.UseCors("DefaultCors");
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapHub<NotificationHub>("/hubs/notifications")
+    .RequireRateLimiting(RateLimiterPolicies.Default);
 
 app.Run();
