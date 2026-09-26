@@ -1,4 +1,5 @@
 using TeamNotificationService.Domain.Entities;
+using TeamNotificationService.Domain.Utils;
 
 namespace TeamNotificationService.Application.Models.Notifications;
 
@@ -24,8 +25,8 @@ public class UpsertNotifcationDeliveryResponseModel
         {
             Id = entity.Id,
             NotificationRecipientId = entity.NotificationRecipientId,
-            Channel = entity.Channel,
-            Status = entity.Status,
+            Channel = EnumUtils.ToString(entity.Channel),
+            Status = EnumUtils.ToString(entity.Status),
             Destination = entity.Destination,
             TemplateKey = entity.TemplateKey,
             SentAt = entity.SentAt,

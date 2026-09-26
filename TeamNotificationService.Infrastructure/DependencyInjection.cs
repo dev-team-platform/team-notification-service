@@ -54,8 +54,17 @@ public static class DependencyInjection
                 options => !string.IsNullOrWhiteSpace(options.Consumer.RetryAttemptHeader),
                 "RabbitMq Consumer:RetryAttemptHeader is required.")
             .Validate(
-                options => !string.IsNullOrWhiteSpace(options.Topology.RetryExchange),
-                "RabbitMq Topology:RetryExchange is required.")
+                options => !string.IsNullOrWhiteSpace(options.Topology.OrganizationService.Exchange)
+                    && options.Topology.OrganizationService.RoutingKeys.Count > 0
+                    && options.Topology.OrganizationService.RoutingKeys.All(
+                        routingKey => !string.IsNullOrWhiteSpace(routingKey)),
+                "RabbitMq Topology:OrganizationService must define an exchange and at least one routing key.")
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.Topology.DeadLetterExchange)
+                    && !string.IsNullOrWhiteSpace(options.Topology.DeadLetterQueue)
+                    && !string.IsNullOrWhiteSpace(options.Topology.RetryExchange)
+                    && !string.IsNullOrWhiteSpace(options.Topology.RetryReturnExchange),
+                "RabbitMq topology exchanges and dead-letter queue are required.")
             .Validate(
                 options => options.Topology.RetryQueues.Count == 3
                     && options.Topology.RetryQueues.All(retry =>
@@ -82,7 +91,7 @@ public static class DependencyInjection
             .BindConfiguration(InternalJwtOptions.SectionName)
             .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "InternalJwt Issuer is required.")
             .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "InternalJwt Audience is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.PublicKeyPem), "InternalJwt PublicKeyPem is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.PublicKeyPemPath), "InternalJwt PublicKeyPem is required.")
             .ValidateOnStart();
 
         return services;

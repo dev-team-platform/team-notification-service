@@ -1,4 +1,4 @@
-using TeamNotificationService.Application.Models.Email;
+using TeamNotificationService.Application.Models.Emails;
 
 namespace TeamNotificationService.Application.Interfaces.Services.Email;
 

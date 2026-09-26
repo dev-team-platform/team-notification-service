@@ -8,5 +8,5 @@ public class InternalJwtOptions
 
     public string Audience { get; set; } = string.Empty;
 
-    public string PublicKeyPem { get; set; } = string.Empty;
+    public string PublicKeyPemPath { get; set; } = string.Empty;
 }

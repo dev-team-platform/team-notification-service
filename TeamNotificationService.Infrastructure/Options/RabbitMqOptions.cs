@@ -24,12 +24,11 @@ public class RabbitMqConsumerOptions
 
 public class RabbitMqTopologyOptions
 {
-    public string OrganizationEventExchange { get; init; } = "team.organization.events";
-    public string OrganizationUserCreatedRoutingKey { get; init; } = "user.created.v1";
-    public string DeadLetterExchange { get; init; } = "team.notification.dlx";
-    public string DeadLetterQueue { get; init; } = "team.notification.business-events.q.dlq";
-    public string RetryExchange { get; init; } = "team.notification.retry";
-    public string RetryReturnExchange { get; init; } = "team.notification.retry.return";
+    public PublisherOptions OrganizationService { get; init; } = new();
+    public string DeadLetterExchange { get; init; } = string.Empty;
+    public string DeadLetterQueue { get; init; } = string.Empty;
+    public string RetryExchange { get; init; } = string.Empty;
+    public string RetryReturnExchange { get; init; } = string.Empty;
     public IReadOnlyList<RabbitMqRetryQueueOptions> RetryQueues { get; init; } = [];
 }
 
@@ -38,4 +37,10 @@ public class RabbitMqRetryQueueOptions
     public string Queue { get; init; } = null!;
     public string RoutingKey { get; init; } = null!;
     public int MessageTtlMilliseconds { get; init; }
+}
+
+public class PublisherOptions
+{
+    public string Exchange { get; init; } = string.Empty;
+    public List<string> RoutingKeys { get; init; } = [];
 }

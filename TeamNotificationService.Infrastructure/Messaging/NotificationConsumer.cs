@@ -12,8 +12,8 @@ using TeamNotificationService.Application.Interfaces.Services.Email;
 using TeamNotificationService.Application.Interfaces.Services.NotificationDeliveries;
 using TeamNotificationService.Application.Models.Emails;
 using TeamNotificationService.Application.Models.Notifications;
-using TeamNotificationService.Domain.Constants;
 using TeamNotificationService.Domain.Entities;
+using TeamNotificationService.Domain.Enums;
 using TeamNotificationService.Domain.Exceptions;
 using TeamNotificationService.Domain.Utils;
 using TeamNotificationService.Infrastructure.Options;
@@ -22,8 +22,8 @@ namespace TeamNotificationService.Infrastructure.Messaging;
 
 /// <summary>
 /// Processes every CloudEvent whose data uses CreateNotificationRequestModel.
-/// RabbitMQ topology is provisioned externally; this consumer only connects to
-/// the configured queue and publishes configured retries.
+/// Declares its organization-event, retry, and dead-letter topology once at
+/// startup, then consumes the configured queue and publishes configured retries.
 /// </summary>
 public sealed class NotificationConsumer : BackgroundService
 {
@@ -50,8 +50,119 @@ public sealed class NotificationConsumer : BackgroundService
         _logger = logger;
     }
 
+    private async Task ConfigureTopologyAsync(IChannel channel, CancellationToken cancellationToken)
+    {
+        var topology = _options.Topology;
+        var organizationService = topology.OrganizationService;
+
+        await channel.ExchangeDeclareAsync(
+            organizationService.Exchange,
+            ExchangeType.Topic,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: cancellationToken);
+
+        await channel.ExchangeDeclareAsync(
+            topology.DeadLetterExchange,
+            ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: cancellationToken);
+
+        await channel.ExchangeDeclareAsync(
+            topology.RetryExchange,
+            ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: cancellationToken);
+
+        await channel.ExchangeDeclareAsync(
+            topology.RetryReturnExchange,
+            ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueDeclareAsync(
+            topology.DeadLetterQueue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueBindAsync(
+            topology.DeadLetterQueue,
+            topology.DeadLetterExchange,
+            _options.Consumer.Queue,
+            arguments: null,
+            noWait: false,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueDeclareAsync(
+            _options.Consumer.Queue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-dead-letter-exchange"] = topology.DeadLetterExchange,
+                ["x-dead-letter-routing-key"] = _options.Consumer.Queue
+            },
+            cancellationToken: cancellationToken);
+
+        foreach (var routingKey in organizationService.RoutingKeys)
+        {
+            await channel.QueueBindAsync(
+                _options.Consumer.Queue,
+                organizationService.Exchange,
+                routingKey,
+                arguments: null,
+                noWait: false,
+                cancellationToken: cancellationToken);
+        }
+
+        await channel.QueueBindAsync(
+            _options.Consumer.Queue,
+            topology.RetryReturnExchange,
+            _options.Consumer.Queue,
+            arguments: null,
+            noWait: false,
+            cancellationToken: cancellationToken);
+
+        foreach (var retry in topology.RetryQueues)
+        {
+            await channel.QueueDeclareAsync(
+                retry.Queue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object?>
+                {
+                    ["x-message-ttl"] = retry.MessageTtlMilliseconds,
+                    ["x-dead-letter-exchange"] = topology.RetryReturnExchange,
+                    ["x-dead-letter-routing-key"] = _options.Consumer.Queue
+                },
+                cancellationToken: cancellationToken);
+
+            await channel.QueueBindAsync(
+                retry.Queue,
+                topology.RetryExchange,
+                retry.RoutingKey,
+                arguments: null,
+                noWait: false,
+                cancellationToken: cancellationToken);
+        }
+
+        _logger.Information(
+            "Configured notification queue {Queue} with organization exchange {OrganizationExchange}, retry, and dead-letter topology",
+            _options.Consumer.Queue,
+            organizationService.Exchange);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var topologyConfigured = false;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -64,6 +175,12 @@ public sealed class NotificationConsumer : BackgroundService
                         outstandingPublisherConfirmationsRateLimiter: null,
                         consumerDispatchConcurrency: null),
                     stoppingToken);
+
+                if (!topologyConfigured)
+                {
+                    await ConfigureTopologyAsync(channel, stoppingToken);
+                    topologyConfigured = true;
+                }
 
                 await channel.BasicQosAsync(
                     prefetchSize: 0,
@@ -299,7 +416,7 @@ public sealed class NotificationPersistence
             new RealtimeBellNotification(
                 recipient.UserId,
                 recipient.IdentitySubject,
-                new BellNotificationMessage
+                new SendBellNotificationMessage
                 {
                     NotificationId = notification.Id,
                     RecipientId = persistedRecipient.Id,
@@ -382,8 +499,10 @@ public sealed class NotificationBellSender
             new UpsertNotificationDeliveryRequestModel
             {
                 NotificationRecipientId = notificationRecipientId,
-                Channel = ChannelType.Bell,
-                Status = delivered ? DeliveryStatus.Delivered : DeliveryStatus.Failed,
+                Channel = EnumUtils.ToString(ChannelType.Bell),
+                Status = delivered
+                    ? EnumUtils.ToString(DeliveryStatus.Delivered)
+                    : EnumUtils.ToString(DeliveryStatus.Failed),
                 Destination = identitySubject,
                 LastError = error
             },
@@ -506,8 +625,10 @@ public sealed class NotificationEmailSender
             new UpsertNotificationDeliveryRequestModel
             {
                 NotificationRecipientId = notificationRecipientId,
-                Channel = ChannelType.Email,
-                Status = delivered ? DeliveryStatus.Delivered : DeliveryStatus.Failed,
+                Channel = EnumUtils.ToString(ChannelType.Email),
+                Status = delivered
+                    ? EnumUtils.ToString(DeliveryStatus.Delivered)
+                    : EnumUtils.ToString(DeliveryStatus.Failed),
                 Destination = email,
                 LastError = error
             },
@@ -584,4 +705,4 @@ public sealed class CloudEventEnvelope<TData>
 public sealed record RealtimeBellNotification(
     Guid UserId,
     string IdentitySubject,
-    BellNotificationMessage Notification);
+    SendBellNotificationMessage Notification);

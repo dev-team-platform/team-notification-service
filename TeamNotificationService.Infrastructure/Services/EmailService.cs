@@ -4,7 +4,7 @@ using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using TeamNotificationService.Application.Interfaces.Services.Email;
-using TeamNotificationService.Application.Models.Email;
+using TeamNotificationService.Application.Models.Emails;
 using TeamNotificationService.Infrastructure.Options;
 
 namespace TeamNotificationService.Infrastructure.Services;

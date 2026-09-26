@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace TeamNotificationService.Application.Models.Notifications;
 
-public sealed class BellNotificationMessage
+public sealed class SendBellNotificationMessage
 {
     public required Guid NotificationId { get; init; }
     public required Guid RecipientId { get; init; }
