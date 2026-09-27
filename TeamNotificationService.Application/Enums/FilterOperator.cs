@@ -2,11 +2,11 @@ namespace TeamNotificationService.Application.Enums;
 
 public enum FilterOperator
 {
-    Equal = 1,
+    Equals = 1,
     GreaterThan = 2,
     LessThan = 3,
-    GreaterThanOrEqual = 4,
-    LessThanOrEqual = 5,
+    GreaterThanOrEquals = 4,
+    LessThanOrEquals = 5,
     Contains = 6,
     StartsWith = 7,
     EndsWith = 8,

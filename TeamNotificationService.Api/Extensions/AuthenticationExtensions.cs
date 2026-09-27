@@ -12,18 +12,18 @@ public static class AuthenticationExtensions
         IConfiguration configuration)
     {
         services
-            .AddOptions<InternalJwtOptions>()
-            .BindConfiguration(InternalJwtOptions.SectionName)
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "InternalJwt Issuer is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "InternalJwt Audience is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.PublicKeyPemPath), "InternalJwt PublicKeyPem is required.")
+            .AddOptions<AuthOptions>()
+            .BindConfiguration(AuthOptions.SectionName)
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.Issuer), "InternalJwt Issuer is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.Audience), "InternalJwt Audience is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.PublicKeyPemPath), "InternalJwt PublicKeyPem is required.")
             .ValidateOnStart();
 
-        var internalJwt = configuration
-            .GetRequiredSection(InternalJwtOptions.SectionName)
-            .Get<InternalJwtOptions>()!;
+        var authOptions = configuration
+            .GetRequiredSection(AuthOptions.SectionName)
+            .Get<AuthOptions>()!;
 
-        var publicKeyPem = File.ReadAllText(internalJwt.PublicKeyPemPath);
+        var publicKeyPem = File.ReadAllText(authOptions.InternalJwt.PublicKeyPemPath);
 
         var rsa = RSA.Create();
         rsa.ImportFromPem(publicKeyPem);
@@ -37,9 +37,9 @@ public static class AuthenticationExtensions
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuer = internalJwt.Issuer,
+                    ValidIssuer = authOptions.InternalJwt.Issuer,
                     ValidateAudience = true,
-                    ValidAudience = internalJwt.Audience,
+                    ValidAudience = authOptions.InternalJwt.Audience,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = signingKey,
                     ValidateLifetime = true,

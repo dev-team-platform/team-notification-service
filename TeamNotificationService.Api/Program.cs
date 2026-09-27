@@ -11,6 +11,7 @@ using TeamNotificationService.Application;
 using TeamNotificationService.Infrastructure;
 using TeamNotificationService.Api.Middlewares;
 using TeamNotificationService.Application.Interfaces.Services;
+using TeamNotificationService.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,10 +30,10 @@ builder.Services.AddAppOptions(builder.Configuration);
 builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddInternalJwtAuthentication(builder.Configuration);
-builder.Services.AddNotificationRateLimiter(builder.Configuration);
+builder.Services.AddNAppRateLimiter(builder.Configuration);
 builder.Services.AddAuthorization();
-builder.Services.AddSignalR();
-builder.Services.AddSingleton<IRealtimeNotificationPublisher, SignalRRealtimeNotificationPublisher>();
+builder.Services.AddApi(builder.Configuration);
+
 
 builder.Services.AddControllers();
 
@@ -48,27 +49,6 @@ builder.Services.AddVersionedApiExplorer(options =>
 {
     options.GroupNameFormat = "'v'VVV";
     options.SubstituteApiVersionInUrl = true;
-});
-
-var allowedOrigins = builder.Configuration
-    .GetSection("Cors:AllowedOrigins")
-    .Get<string[]>() ?? [];
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("DefaultCors", policy =>
-    {
-        if (allowedOrigins.Length == 0)
-        {
-            return;
-        }
-
-        policy
-            .WithOrigins(allowedOrigins)
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
-    });
 });
 
 builder.Services.AddSwaggerGen(options =>
@@ -137,8 +117,6 @@ if (exposeApiDocs)
 }
 
 app.UseRouting();
-
-app.UseCors("DefaultCors");
 
 app.UseRateLimiter();
 app.UseAuthentication();

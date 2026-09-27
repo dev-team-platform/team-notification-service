@@ -6,7 +6,7 @@ namespace TeamNotificationService.Api.Extensions;
 
 public static class RateLimiterExtensions
 {
-    public static IServiceCollection AddNotificationRateLimiter(
+    public static IServiceCollection AddNAppRateLimiter(
         this IServiceCollection services,
         IConfiguration configuration)
     {

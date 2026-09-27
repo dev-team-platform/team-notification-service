@@ -328,9 +328,9 @@ public sealed class NotificationConsumer : BackgroundService
                 || email.Recipients is null
                 || email.Recipients.Count == 0
                 || email.Recipients.Any(recipient =>
-                    recipient.Id == Guid.Empty
+                    recipient.UserId == Guid.Empty
                     || string.IsNullOrWhiteSpace(recipient.Email))
-                || email.Recipients.Select(recipient => recipient.Id).Distinct().Count()
+                || email.Recipients.Select(recipient => recipient.UserId).Distinct().Count()
                     != email.Recipients.Count)))
         {
             throw new UnprocessableEntityException("The message is not a valid notification request CloudEvent.");
@@ -556,7 +556,7 @@ public sealed class NotificationEmailSender
 
         foreach (var recipient in email.Recipients)
         {
-            notificationRecipientIds.TryGetValue(recipient.Id, out var notificationRecipientId);
+            notificationRecipientIds.TryGetValue(recipient.UserId, out var notificationRecipientId);
 
             try
             {
