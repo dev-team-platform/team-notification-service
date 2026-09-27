@@ -8,7 +8,7 @@ public static class EnumUtils
     {
         if (!typeof(T).IsEnum)
         {
-            throw new ArgumentException("T must be an enumerated type");
+            throw new UnprocessableEntityException("T must be an enumerated type");
         }
 
         if (Enum.TryParse<T>(value, true, out var result))
@@ -29,7 +29,7 @@ public static class EnumUtils
     {
         if (!typeof(T).IsEnum)
         {
-            throw new ArgumentException("T must be an enumerated type");
+            throw new UnprocessableEntityException("T must be an enumerated type");
         }
 
         if (!Enum.IsDefined(typeof(T), enumValue))

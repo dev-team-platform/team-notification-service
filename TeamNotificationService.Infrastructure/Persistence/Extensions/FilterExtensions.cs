@@ -370,7 +370,7 @@ public static class FilterExtensions
             var nullableFieldType = Nullable.GetUnderlyingType(fieldType);
             var targetFieldType = nullableFieldType ?? fieldType;
 
-            if (targetFieldType == typeof(bool) && criterion.Operator != FilterOperator.Equal)
+            if (targetFieldType == typeof(bool) && criterion.Operator != FilterOperator.Equals)
             {
                 throw new UnprocessableEntityException(
                     "Boolean fields only support the Equal operator.",
@@ -403,7 +403,7 @@ public static class FilterExtensions
 
             var body = criterion.Operator switch
             {
-                FilterOperator.Equal => Expression.Equal(
+                FilterOperator.Equals => Expression.Equal(
                     comparisonExpression,
                     Expression.Constant(parsedValue, comparisonExpression.Type)
                 ),
@@ -411,7 +411,7 @@ public static class FilterExtensions
                     comparisonExpression,
                     Expression.Constant(parsedValue, comparisonExpression.Type)
                 ),
-                FilterOperator.GreaterThanOrEqual => Expression.GreaterThanOrEqual(
+                FilterOperator.GreaterThanOrEquals => Expression.GreaterThanOrEqual(
                     comparisonExpression,
                     Expression.Constant(parsedValue, comparisonExpression.Type)
                 ),
@@ -419,7 +419,7 @@ public static class FilterExtensions
                     comparisonExpression,
                     Expression.Constant(parsedValue, comparisonExpression.Type)
                 ),
-                FilterOperator.LessThanOrEqual => Expression.LessThanOrEqual(
+                FilterOperator.LessThanOrEquals => Expression.LessThanOrEqual(
                     comparisonExpression,
                     Expression.Constant(parsedValue, comparisonExpression.Type)
                 ),
@@ -725,9 +725,9 @@ public static class FilterExtensions
         private static bool RequiresSingleValue(FilterOperator filterOperator)
         {
             return filterOperator is FilterOperator.GreaterThan
-                or FilterOperator.GreaterThanOrEqual
+                or FilterOperator.GreaterThanOrEquals
                 or FilterOperator.LessThan
-                or FilterOperator.LessThanOrEqual;
+                or FilterOperator.LessThanOrEquals;
         }
 
         // Null-check operators do not accept any payload values.
@@ -739,7 +739,7 @@ public static class FilterExtensions
         // These operators combine multiple input values with OR inside one criterion.
         private static bool RequiresOrValueCombination(FilterOperator filterOperator)
         {
-            return filterOperator is FilterOperator.Equal
+            return filterOperator is FilterOperator.Equals
                 or FilterOperator.Contains
                 or FilterOperator.StartsWith
                 or FilterOperator.EndsWith;

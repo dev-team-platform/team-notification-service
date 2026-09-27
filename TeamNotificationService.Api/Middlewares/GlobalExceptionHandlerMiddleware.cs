@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TeamNotificationService.Api.Dtos.Common;
 using TeamNotificationService.Domain.Exceptions;
+using TeamNotificationService.Domain.Utils;
 
 namespace TeamNotificationService.Api.Middlewares;
 
@@ -8,8 +9,6 @@ public class GlobalExceptionHandlerMiddleware(
     RequestDelegate next,
     Serilog.ILogger logger)
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     public async Task InvokeAsync(HttpContext context)
     {
         try
@@ -42,7 +41,7 @@ public class GlobalExceptionHandlerMiddleware(
             context.Response.StatusCode = statusCode;
             context.Response.ContentType = "application/json";
 
-            await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonOptions));
+            await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonUtils.SerializerOptions));
         }
     }
 
