@@ -7,7 +7,7 @@ using TeamNotificationService.Application.Interfaces.Services.Emails;
 using TeamNotificationService.Application.Models.Emails;
 using TeamNotificationService.Infrastructure.Options;
 
-namespace TeamNotificationService.Infrastructure.Services;
+namespace TeamNotificationService.Infrastructure.Services.Email;
 
 public sealed class EmailService : BackgroundService, IEmailService
 {

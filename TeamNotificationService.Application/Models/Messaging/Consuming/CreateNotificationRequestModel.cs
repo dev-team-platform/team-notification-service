@@ -1,7 +1,6 @@
 using System.Text.Json;
-using TeamNotificationService.Application.Models.Emails;
 
-namespace TeamNotificationService.Application.Models.Notifications;
+namespace TeamNotificationService.Application.Models.Messaging.Consuming;
 
 public class CreateNotificationRequestModel
 {

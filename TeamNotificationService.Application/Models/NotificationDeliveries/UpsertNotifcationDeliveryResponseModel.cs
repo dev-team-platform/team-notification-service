@@ -1,7 +1,7 @@
 using TeamNotificationService.Domain.Entities;
 using TeamNotificationService.Domain.Utils;
 
-namespace TeamNotificationService.Application.Models.Notifications;
+namespace TeamNotificationService.Application.Models.NotificationDeliveries;
 
 public class UpsertNotifcationDeliveryResponseModel
 {

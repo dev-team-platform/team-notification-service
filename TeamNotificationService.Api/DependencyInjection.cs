@@ -1,5 +1,5 @@
 using TeamNotificationService.Api.Hubs;
-using TeamNotificationService.Application.Interfaces.Messaging;
+using TeamNotificationService.Application.Interfaces.Services.Notifications;
 
 namespace TeamNotificationService.Api;
 
