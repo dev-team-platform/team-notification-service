@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace TeamNotificationService.Application.Models.Emails;
+namespace TeamNotificationService.Application.Models.Messaging.Consuming;
 
 public class SendEmailFromProducerRequestModel
 {

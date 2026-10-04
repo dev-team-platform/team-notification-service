@@ -6,7 +6,7 @@ using Serilog;
 using TeamNotificationService.Api.Constants;
 using TeamNotificationService.Api.Extensions;
 using TeamNotificationService.Api.Hubs;
-using TeamNotificationService.Application.Interfaces.Messaging;
+using TeamNotificationService.Application.Interfaces.Services.Notifications;
 using TeamNotificationService.Application;
 using TeamNotificationService.Infrastructure;
 using TeamNotificationService.Api.Middlewares;

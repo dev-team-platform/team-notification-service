@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
-using TeamNotificationService.Application.Interfaces.Messaging;
+using TeamNotificationService.Application.Interfaces.Services.Notifications;
 using TeamNotificationService.Application.Models.Notifications;
 
 namespace TeamNotificationService.Api.Hubs;

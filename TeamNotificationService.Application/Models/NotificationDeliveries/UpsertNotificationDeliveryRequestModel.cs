@@ -1,4 +1,4 @@
-namespace TeamNotificationService.Application.Models.Notifications;
+namespace TeamNotificationService.Application.Models.NotificationDeliveries;
 
 public sealed class UpsertNotificationDeliveryRequestModel
 {
