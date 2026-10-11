@@ -15,26 +15,30 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
     {
     }
 
-    public async Task<IReadOnlyList<GetUnreadNotificationsResponseModel>> FindUnreadForUserAsync(
+    public async Task<IReadOnlyList<GetLatelyNotificationForUserResponseModel>> FindLatelyForUserAsync(
         string userIdentitySubject,
         CancellationToken cancellationToken = default)
     {
         var earliestCreatedAt = DateTimeOffset.UtcNow.AddDays(-10);
-        var queryable = from recipient in _dbContext.Set<NotificationRecipient>()
-                        join notification in _dbContext.Set<Notification>()
-                            on recipient.NotificationId equals notification.Id
-                        where recipient.UserIdentitySubject == userIdentitySubject
-                            && !recipient.IsRead
-                            && notification.CreatedAt >= earliestCreatedAt
-                        orderby notification.CreatedAt descending,
-                                notification.Id ascending
-                        select new GetUnreadNotificationsResponseModel
+        var userNotifications = from recipient in _dbContext.Set<NotificationRecipient>()
+                                join notification in _dbContext.Set<Notification>()
+                                    on recipient.NotificationId equals notification.Id
+                                where recipient.UserIdentitySubject == userIdentitySubject
+                                select new { Recipient = recipient, Notification = notification };
+
+        var queryable = from userNotification in userNotifications
+                        where userNotification.Notification.CreatedAt >= earliestCreatedAt
+                        orderby userNotification.Notification.CreatedAt descending,
+                                userNotification.Notification.Id ascending
+                        select new GetLatelyNotificationForUserResponseModel
                         {
-                            NotificationId = notification.Id,
-                            Title = notification.Title,
-                            Content = notification.Content,
-                            Data = notification.Data,
-                            CreatedAt = notification.CreatedAt
+                            NotificationId = userNotification.Notification.Id,
+                            Title = userNotification.Notification.Title,
+                            Content = userNotification.Notification.Content,
+                            Data = userNotification.Notification.Data,
+                            CreatedAt = userNotification.Notification.CreatedAt,
+                            IsRead = userNotification.Recipient.IsRead,
+                            ReadAt = userNotification.Recipient.ReadAt
                         };
 
         return await queryable.AsNoTracking().ToListAsync(cancellationToken);

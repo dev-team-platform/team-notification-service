@@ -1,4 +1,4 @@
-namespace TeamNotificationService.Api.Options;
+namespace TeamNotificationService.Infrastructure.Options;
 
 public class AuthOptions
 {

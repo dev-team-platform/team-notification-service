@@ -50,30 +50,36 @@ public class NotificationCommandService : INotificationCommandService
             };
         }
 
-        if (requestModel.NotificationId is null)
+        var notificationIds = requestModel.NotificationIds.Distinct().ToArray();
+        if (notificationIds.Length == 0)
         {
             throw new UnprocessableEntityException(
-                "NotificationId is required when IsAll is false.");
+                "At least one notification ID is required when IsAll is false.");
         }
 
-        var notificationRecipient = await _notificationRecipientRepository.FindFirstByConditionAsync(
+        var notificationRecipients = await _notificationRecipientRepository.FindAllByConditionAsync(
             query => query.Where(recipient =>
-                recipient.NotificationId == requestModel.NotificationId.Value
+                notificationIds.Contains(recipient.NotificationId)
                 && recipient.UserIdentitySubject == identitySubject),
             trackChanges: true,
             cancellationToken: cancellationToken);
 
-        if (notificationRecipient is null)
+        if (notificationRecipients.Count != notificationIds.Length)
         {
             throw new NotFoundException("Notification was not found.");
         }
 
         var markedCount = 0;
-        if (!notificationRecipient.IsRead)
+        foreach (var notificationRecipient in notificationRecipients)
         {
+            if (notificationRecipient.IsRead)
+            {
+                continue;
+            }
+
             notificationRecipient.IsRead = true;
             notificationRecipient.ReadAt = now;
-            markedCount = 1;
+            markedCount++;
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

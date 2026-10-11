@@ -19,6 +19,9 @@ public sealed class SignalRRealtimeNotificationPublisher : IRealtimeNotification
         SendBellNotificationMessage notification,
         CancellationToken cancellationToken = default)
     {
-        return _hubContext.Clients.Group(identitySubject).BellNotification(notification);
+        var sendNotification = notification.Clone();
+        sendNotification.RecipientId = Guid.Empty;
+
+        return _hubContext.Clients.Group(identitySubject).BellNotification(sendNotification);
     }
 }

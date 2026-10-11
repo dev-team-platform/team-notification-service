@@ -26,20 +26,23 @@ public class NotificationController : ControllerBase
         _notificationCommandService = notificationCommandService;
     }
 
-    [HttpGet("unread")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IReadOnlyList<GetUnreadNotificationsResponse>))]
+    [HttpGet("latest")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IReadOnlyList<GetLatelyNotificationForUserResponse>))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ErrorResponse))]
-    public async Task<IActionResult> GetUnreadNotificationsAsync(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetLatelyNotificationForUserAsync(
+        [FromQuery] GetLatelyNotificationForUserRequest request,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _notificationQueryService.GetUnreadNotificationsAsync(
+        var result = await _notificationQueryService.GetLatelyNotificationForUserAsync(
+            GetLatelyNotificationForUserRequest.ToModel(request),
             cancellationToken);
 
-        var dtoResponse = result.Select(GetUnreadNotificationsResponse.FromModel).ToList();
+        var dtoResponse = result.Select(GetLatelyNotificationForUserResponse.FromModel).ToList();
 
         return Ok(dtoResponse);
     }

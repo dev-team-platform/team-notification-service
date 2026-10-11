@@ -18,10 +18,13 @@ public class NotificationQueryService : INotificationQueryService
         _notificationRepository = notificationRepository;
     }
 
-    public Task<IReadOnlyList<GetUnreadNotificationsResponseModel>> GetUnreadNotificationsAsync(
+    public Task<IReadOnlyList<GetLatelyNotificationForUserResponseModel>> GetLatelyNotificationForUserAsync(
+        GetLatelyNotificationForUserRequestModel model,
         CancellationToken cancellationToken = default)
     {
-        return _notificationRepository.FindUnreadForUserAsync(
+        ArgumentNullException.ThrowIfNull(model);
+
+        return _notificationRepository.FindLatelyForUserAsync(
             _currentUserContext.IdentitySubject,
             cancellationToken);
     }

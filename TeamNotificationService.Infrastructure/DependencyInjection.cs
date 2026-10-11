@@ -23,6 +23,14 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services
+            .AddOptions<AuthOptions>()
+            .BindConfiguration(AuthOptions.SectionName)
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.Issuer), "InternalJwt Issuer is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.Audience), "InternalJwt Audience is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.PublicKeyPemPath), "InternalJwt PublicKeyPem is required.")
+            .ValidateOnStart();
+
+        services
             .AddOptions<RabbitMqOptions>()
             .BindConfiguration(RabbitMqOptions.SectionName)
             .Validate(
