@@ -123,7 +123,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<NotificationHub>("/hubs/notifications")
+app.MapHub<NotificationHub>("/api/v1/hubs/notifications")
     .RequireRateLimiting(RateLimiterPolicies.Default);
 
 app.Run();

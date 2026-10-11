@@ -6,7 +6,7 @@ namespace TeamNotificationService.Application.Interfaces.Repositories;
 
 public interface INotificationRepository : IGenericRepository<Notification>
 {
-    Task<IReadOnlyList<GetUnreadNotificationsResponseModel>> FindUnreadForUserAsync(
+    Task<IReadOnlyList<GetLatelyNotificationForUserResponseModel>> FindLatelyForUserAsync(
         string userIdentitySubject,
         CancellationToken cancellationToken = default);
 

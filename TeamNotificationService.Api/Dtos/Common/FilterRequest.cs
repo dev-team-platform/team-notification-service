@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using TeamNotificationService.Api.Utils;
-using TeamNotificationService.Application.Enums;
 using TeamNotificationService.Application.Models.Common;
+using TeamNotificationService.Domain.Enums.Common;
 using TeamNotificationService.Domain.Exceptions;
 using TeamNotificationService.Domain.Utils;
 

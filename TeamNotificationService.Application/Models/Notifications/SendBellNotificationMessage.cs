@@ -4,10 +4,27 @@ namespace TeamNotificationService.Application.Models.Notifications;
 
 public sealed class SendBellNotificationMessage
 {
-    public required Guid NotificationId { get; init; }
-    public required Guid RecipientId { get; init; }
-    public required string EventType { get; init; }
-    public required string Message { get; init; }
+    public Guid NotificationId { get; init; }
+    public Guid RecipientId { get; set; }
+    public string? Title { get; init; }
+    public string? Content { get; init; }
     public JsonDocument? Data { get; init; }
-    public required DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public bool IsRead { get; init; }
+    public DateTimeOffset? ReadAt { get; init; }
+
+    public SendBellNotificationMessage Clone()
+    {
+        return new SendBellNotificationMessage
+        {
+            NotificationId = NotificationId,
+            RecipientId = RecipientId,
+            Title = Title,
+            Content = Content,
+            Data = Data,
+            CreatedAt = CreatedAt,
+            IsRead = IsRead,
+            ReadAt = ReadAt
+        };
+    }
 }

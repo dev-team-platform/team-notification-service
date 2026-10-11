@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 using System.Text.Json;
-using TeamNotificationService.Application.Enums;
+using TeamNotificationService.Domain.Enums.Common;
 using TeamNotificationService.Domain.Utils;
 
 namespace TeamNotificationService.Application.Models.Common;

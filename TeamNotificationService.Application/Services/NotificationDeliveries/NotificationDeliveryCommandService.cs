@@ -2,7 +2,7 @@ using TeamNotificationService.Application.Interfaces.Repositories;
 using TeamNotificationService.Application.Interfaces.Services.NotificationDeliveries;
 using TeamNotificationService.Application.Models.NotificationDeliveries;
 using TeamNotificationService.Domain.Entities;
-using TeamNotificationService.Domain.Enums;
+using TeamNotificationService.Domain.Enums.NotificationDeliveries;
 using TeamNotificationService.Domain.Utils;
 
 namespace TeamNotificationService.Application.Services.NotificationDeliveries;

@@ -23,11 +23,6 @@ public sealed class CurrentUserContext : ICurrentUserContext
     {
         get
         {
-            if (_hostEnvironment.IsDevelopment())
-            {
-                return "dev-user";
-            }
-
             return _httpContextAccessor.HttpContext?.User.FindFirstValue("sub")
                 ?? throw new UnauthorizedException("User is not authenticated.");
         }

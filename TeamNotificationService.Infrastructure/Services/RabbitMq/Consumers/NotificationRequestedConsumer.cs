@@ -6,7 +6,6 @@ using TeamNotificationService.Application.Interfaces.Services.NotificationDelive
 using TeamNotificationService.Application.Models.Emails;
 using TeamNotificationService.Application.Models.Notifications;
 using TeamNotificationService.Domain.Entities;
-using TeamNotificationService.Domain.Enums;
 using TeamNotificationService.Domain.Exceptions;
 using TeamNotificationService.Domain.Utils;
 using TeamNotificationService.Application.Interfaces.Services.Messaging;
@@ -14,6 +13,7 @@ using System.Text.Json;
 using TeamNotificationService.Infrastructure.Services.Email;
 using TeamNotificationService.Application.Models.Messaging.Consuming;
 using TeamNotificationService.Application.Models.NotificationDeliveries;
+using TeamNotificationService.Domain.Enums.NotificationDeliveries;
 
 namespace TeamNotificationService.Infrastructure.Services.RabbitMq.Consumers;
 
@@ -103,8 +103,7 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
                     || notification.Recipients.Count == 0
                     || notification.Recipients.Any(recipient =>
                         recipient.UserId == Guid.Empty
-                        || string.IsNullOrWhiteSpace(
-                            recipient.IdentitySubject))
+                        || string.IsNullOrWhiteSpace(recipient.IdentitySubject))
                     || notification.Recipients
                         .Select(recipient => recipient.UserId)
                         .Distinct()
@@ -115,8 +114,7 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
                     string.IsNullOrWhiteSpace(email.TemplateKey)
                     || email.Recipients is null
                     || email.Recipients.Count == 0
-                    || email.Recipients.Any(recipient =>
-                        recipient.UserId == Guid.Empty
+                    || email.Recipients.Any(recipient => recipient.UserId == Guid.Empty
                         || string.IsNullOrWhiteSpace(recipient.Email))
                     || email.Recipients
                         .Select(recipient => recipient.UserId)
@@ -198,15 +196,18 @@ public sealed class NotificationPersistence
                     new RealtimeBellNotification(
                         recipient.UserId,
                         recipient.IdentitySubject,
+                        persistedRecipient.Id,
                         new SendBellNotificationMessage
                         {
                             NotificationId = notification.Id,
                             RecipientId = persistedRecipient.Id,
-                            EventType = envelope.Data.EventType,
-                            Message = notification.Content!,
+                            Title = notification.Title,
+                            Content = notification.Content,
                             Data = notification.Data is null
                                 ? null
                                 : JsonDocument.Parse(notification.Data.RootElement.GetRawText()),
+                            IsRead = false,
+                            ReadAt = null,
                             CreatedAt = notification.CreatedAt
                         }))
             .ToList();
@@ -235,31 +236,38 @@ public sealed class NotificationBellSender
     {
         foreach (var bellNotification in notifications)
         {
+            Exception? publishException = null;
+
             try
             {
                 await _notificationPublisher.PublishBellNotificationAsync(
                     bellNotification.IdentitySubject,
                     bellNotification.Notification,
                     cancellationToken);
-
-                await MarkDeliveryAsync(
-                    bellNotification.Notification.RecipientId,
-                    bellNotification.IdentitySubject,
-                    delivered: true,
-                    error: null,
-                    cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception exception)
             {
-                await MarkDeliveryAsync(
-                    bellNotification.Notification.RecipientId,
-                    bellNotification.IdentitySubject,
-                    delivered: false,
-                    error: exception.Message,
-                    cancellationToken);
+                publishException = exception;
+            }
 
+            // Keep delivery tracking outside the publish try/catch. If this database
+            // write fails, treating it as a failed push would retry the same tracking
+            // operation and leave the first failed entity in the DbContext.
+            await MarkDeliveryAsync(
+                bellNotification.NotificationRecipientId,
+                bellNotification.IdentitySubject,
+                delivered: publishException is null,
+                error: publishException?.Message,
+                cancellationToken);
+
+            if (publishException is not null)
+            {
                 _logger.Warning(
-                    exception,
+                    publishException,
                     "Bell notification {NotificationId} was stored but could not be pushed to user {IdentitySubject}",
                     bellNotification.Notification.NotificationId,
                     bellNotification.IdentitySubject);
@@ -331,13 +339,15 @@ public sealed class NotificationEmailSender
 
         var notificationRecipientIds = persistedRecipients.ToDictionary(
             item => item.UserId,
-            item => item.Notification.RecipientId);
+            item => item.NotificationRecipientId);
 
         foreach (var recipient in email.Recipients)
         {
             notificationRecipientIds.TryGetValue(
                 recipient.UserId,
                 out var notificationRecipientId);
+
+            Exception? queueException = null;
 
             try
             {
@@ -351,42 +361,54 @@ public sealed class NotificationEmailSender
                         Body = body
                     },
                     cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                queueException = exception;
+            }
 
-                if (notificationRecipientId == Guid.Empty)
+            if (notificationRecipientId == Guid.Empty)
+            {
+                if (queueException is null)
                 {
                     _logger.Warning(
                         "Email for recipient {Recipient} was queued but delivery tracking was skipped because no persisted notification recipient was found",
                         recipient.Email);
-
-                    continue;
+                }
+                else
+                {
+                    _logger.Warning(
+                        queueException,
+                        "Email using template {TemplateKey} could not be queued for recipient {Recipient}",
+                        email.TemplateKey,
+                        recipient.Email);
                 }
 
-                await MarkDeliveryAsync(
-                    notificationRecipientId,
-                    recipient.Email,
-                    delivered: true,
-                    error: null,
-                    cancellationToken);
+                continue;
+            }
 
+            await MarkDeliveryAsync(
+                notificationRecipientId,
+                recipient.Email,
+                delivered: queueException is null,
+                error: queueException?.Message,
+                cancellationToken);
+
+            if (queueException is null)
+            {
                 _logger.Information(
                     "Queued email using template {TemplateKey} for recipient {Recipient}",
                     email.TemplateKey,
                     recipient.Email);
             }
-            catch (Exception exception)
+            else
             {
-                if (notificationRecipientId != Guid.Empty)
-                {
-                    await MarkDeliveryAsync(
-                        notificationRecipientId,
-                        recipient.Email,
-                        delivered: false,
-                        error: exception.Message,
-                        cancellationToken);
-                }
-
                 _logger.Warning(
-                    exception,
+                    queueException,
                     "Email using template {TemplateKey} could not be queued for recipient {Recipient}",
                     email.TemplateKey,
                     recipient.Email);
@@ -421,4 +443,5 @@ public sealed class NotificationEmailSender
 public sealed record RealtimeBellNotification(
     Guid UserId,
     string IdentitySubject,
+    Guid NotificationRecipientId,
     SendBellNotificationMessage Notification);

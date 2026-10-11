@@ -1,4 +1,4 @@
-namespace TeamNotificationService.Application.Enums;
+namespace TeamNotificationService.Domain.Enums.Common;
 
 public enum FilterOperator
 {

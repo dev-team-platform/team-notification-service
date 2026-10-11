@@ -4,14 +4,16 @@ namespace TeamNotificationService.Api.Dtos.V1.Notifications;
 
 public sealed class MarkNotificationReadRequest
 {
-    public Guid? NotificationId { get; init; }
+    public IReadOnlyList<Guid>? NotificationIds { get; init; }
     public bool IsAll { get; init; }
 
     public static MarkNotificationReadRequestModel ToModel(MarkNotificationReadRequest request)
     {
         return new MarkNotificationReadRequestModel
         {
-            NotificationId = request.NotificationId,
+            NotificationIds = (request.NotificationIds ?? Array.Empty<Guid>())
+                .Distinct()
+                .ToArray(),
             IsAll = request.IsAll
         };
     }

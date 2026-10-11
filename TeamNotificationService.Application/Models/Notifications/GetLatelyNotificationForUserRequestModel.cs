@@ -1,5 +1,5 @@
 namespace TeamNotificationService.Application.Models.Notifications;
 
-public sealed class GetUnreadNotificationsRequestModel
+public sealed class GetLatelyNotificationForUserRequestModel
 {
 }

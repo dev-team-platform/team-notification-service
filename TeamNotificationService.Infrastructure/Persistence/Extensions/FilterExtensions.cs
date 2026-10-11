@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Linq.Expressions;
-using TeamNotificationService.Application.Enums;
 using TeamNotificationService.Application.Models.Common;
 using TeamNotificationService.Domain.Exceptions;
 using TeamNotificationService.Domain.Utils;
 using Microsoft.EntityFrameworkCore;
+using TeamNotificationService.Domain.Enums.Common;
 
 namespace TeamNotificationService.Infrastructure.Persistence.Extensions;
 
