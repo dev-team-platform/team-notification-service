@@ -4,6 +4,8 @@ namespace TeamNotificationService.Application.Models.Notifications;
 
 public class GetAllNotificationsRequestModel : FilterQuery<GetAllNotificationsResponseModelItem>
 {
+    public string SourceApp { get; init; } = null!;
+
     public override FilterQueryMap<GetAllNotificationsResponseModelItem> GetFilterQueryMap()
     {
         return new FilterQueryMap<GetAllNotificationsResponseModelItem>()

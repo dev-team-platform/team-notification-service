@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using TeamNotificationService.Api.Constants;
 using TeamNotificationService.Api.Dtos.Common;
 using TeamNotificationService.Api.Dtos.V1.Notifications;
 using TeamNotificationService.Application.Interfaces.Services.Notifications;
+using TeamNotificationService.Infrastructure.Options;
 
 namespace TeamNotificationService.Api.V1.Controllers;
 
@@ -17,32 +19,41 @@ public class NotificationController : ControllerBase
 {
     private readonly INotificationQueryService _notificationQueryService;
     private readonly INotificationCommandService _notificationCommandService;
+    private readonly SourceAppsOptions _sourceAppsOptions;
 
     public NotificationController(
         INotificationQueryService notificationQueryService,
-        INotificationCommandService notificationCommandService)
+        INotificationCommandService notificationCommandService,
+        IOptions<SourceAppsOptions> sourceAppsOptions)
     {
         _notificationQueryService = notificationQueryService;
         _notificationCommandService = notificationCommandService;
+        _sourceAppsOptions = sourceAppsOptions.Value;
     }
 
-    [HttpGet("latest")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IReadOnlyList<GetLatelyNotificationForUserResponse>))]
+    [HttpPost("latest")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IReadOnlyList<GetLatestNotificationForUserResponse>))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity, Type = typeof(ErrorResponse))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(ErrorResponse))]
-    public async Task<IActionResult> GetLatelyNotificationForUserAsync(
-        [FromQuery] GetLatelyNotificationForUserRequest request,
+    public async Task<IActionResult> GetLatestNotificationForUserAsync(
+        [FromBody] GetLatestNotificationForUserRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _notificationQueryService.GetLatelyNotificationForUserAsync(
-            GetLatelyNotificationForUserRequest.ToModel(request),
+        var validationError = ValidateSourceApp(request.SourceApp);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        var result = await _notificationQueryService.GetLatestNotificationForUserAsync(
+            GetLatestNotificationForUserRequest.ToModel(request),
             cancellationToken);
 
-        var dtoResponse = result.Select(GetLatelyNotificationForUserResponse.FromModel).ToList();
+        var dtoResponse = result.Select(GetLatestNotificationForUserResponse.FromModel).ToList();
 
         return Ok(dtoResponse);
     }
@@ -59,6 +70,12 @@ public class NotificationController : ControllerBase
         [FromBody] GetAllNotificationsRequest request,
         CancellationToken cancellationToken = default)
     {
+        var validationError = ValidateSourceApp(request.SourceApp);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
         var result = await _notificationQueryService.GetAllNotificationsAsync(
             GetAllNotificationsRequest.ToModel(request),
             cancellationToken);
@@ -80,6 +97,12 @@ public class NotificationController : ControllerBase
         [FromBody] MarkNotificationReadRequest request,
         CancellationToken cancellationToken = default)
     {
+        var validationError = ValidateSourceApp(request.SourceApp);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
         var result = await _notificationCommandService.MarkNotificationReadAsync(
             MarkNotificationReadRequest.ToModel(request),
             cancellationToken);
@@ -87,5 +110,16 @@ public class NotificationController : ControllerBase
         var dtoReponse = MarkNotificationReadResponse.FromModel(result);
 
         return Ok(dtoReponse);
+    }
+
+    private IActionResult? ValidateSourceApp(string? sourceApp)
+    {
+        if (_sourceAppsOptions.IsAllowed(sourceApp))
+        {
+            return null;
+        }
+
+        ModelState.AddModelError(nameof(sourceApp), "The source app is not configured as an allowed source app.");
+        return ValidationProblem(ModelState);
     }
 }

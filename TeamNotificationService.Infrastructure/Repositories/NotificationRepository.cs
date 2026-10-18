@@ -15,8 +15,10 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
     {
     }
 
-    public async Task<IReadOnlyList<GetLatelyNotificationForUserResponseModel>> FindLatelyForUserAsync(
+    public async Task<IReadOnlyList<GetLatestNotificationForUserResponseModel>> FindLatestForUserAsync(
         string userIdentitySubject,
+        string sourceApp,
+        bool isUnreadOnly,
         CancellationToken cancellationToken = default)
     {
         var earliestCreatedAt = DateTimeOffset.UtcNow.AddDays(-10);
@@ -24,13 +26,15 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
                                 join notification in _dbContext.Set<Notification>()
                                     on recipient.NotificationId equals notification.Id
                                 where recipient.UserIdentitySubject == userIdentitySubject
+                                      && notification.SourceApp == sourceApp
+                                      && (!isUnreadOnly || !recipient.IsRead)
                                 select new { Recipient = recipient, Notification = notification };
 
         var queryable = from userNotification in userNotifications
                         where userNotification.Notification.CreatedAt >= earliestCreatedAt
                         orderby userNotification.Notification.CreatedAt descending,
                                 userNotification.Notification.Id ascending
-                        select new GetLatelyNotificationForUserResponseModel
+                        select new GetLatestNotificationForUserResponseModel
                         {
                             NotificationId = userNotification.Notification.Id,
                             Title = userNotification.Notification.Title,
@@ -46,6 +50,7 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
 
     public async Task<FilterResult<GetAllNotificationsResponseModelItem>> FindAllForUserAsync(
         string userIdentitySubject,
+        string sourceApp,
         FilterQuery<GetAllNotificationsResponseModelItem> query,
         CancellationToken cancellationToken = default)
     {
@@ -53,6 +58,7 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
                         join notification in _dbContext.Set<Notification>()
                             on recipient.NotificationId equals notification.Id
                         where recipient.UserIdentitySubject == userIdentitySubject
+                              && notification.SourceApp == sourceApp
                         select new GetAllNotificationsResponseModelItem
                         {
                             NotificationId = notification.Id,

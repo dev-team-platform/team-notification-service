@@ -18,14 +18,16 @@ public class NotificationQueryService : INotificationQueryService
         _notificationRepository = notificationRepository;
     }
 
-    public Task<IReadOnlyList<GetLatelyNotificationForUserResponseModel>> GetLatelyNotificationForUserAsync(
-        GetLatelyNotificationForUserRequestModel model,
+    public Task<IReadOnlyList<GetLatestNotificationForUserResponseModel>> GetLatestNotificationForUserAsync(
+        GetLatestNotificationForUserRequestModel model,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(model);
 
-        return _notificationRepository.FindLatelyForUserAsync(
+        return _notificationRepository.FindLatestForUserAsync(
             _currentUserContext.IdentitySubject,
+            model.SourceApp,
+            model.IsUnreadOnly,
             cancellationToken);
     }
 
@@ -35,6 +37,7 @@ public class NotificationQueryService : INotificationQueryService
     {
         var result = await _notificationRepository.FindAllForUserAsync(
             _currentUserContext.IdentitySubject,
+            model.SourceApp,
             model,
             cancellationToken);
 

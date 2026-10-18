@@ -31,6 +31,16 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         services
+            .AddOptions<SourceAppsOptions>()
+            .BindConfiguration(SourceAppsOptions.SectionName)
+            .Validate(
+                options => options.Allowed is { Length: > 0 } allowed
+                    && allowed.All(sourceApp => !string.IsNullOrWhiteSpace(sourceApp))
+                    && allowed.Distinct(StringComparer.Ordinal).Count() == allowed.Length,
+                "SourceApps Allowed must contain non-empty, unique source app names.")
+            .ValidateOnStart();
+
+        services
             .AddOptions<RabbitMqOptions>()
             .BindConfiguration(RabbitMqOptions.SectionName)
             .Validate(

@@ -16,6 +16,11 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .HasColumnName("id")
             .IsRequired();
 
+        builder.Property(x => x.SourceApp)
+            .HasColumnName("source_app")
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.Property(x => x.Title)
             .HasColumnName("title")
             .HasMaxLength(255);

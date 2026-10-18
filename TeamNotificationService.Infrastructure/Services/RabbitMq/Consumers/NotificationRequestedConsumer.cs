@@ -14,12 +14,15 @@ using TeamNotificationService.Infrastructure.Services.Email;
 using TeamNotificationService.Application.Models.Messaging.Consuming;
 using TeamNotificationService.Application.Models.NotificationDeliveries;
 using TeamNotificationService.Domain.Enums.NotificationDeliveries;
+using TeamNotificationService.Domain.Constants;
+using TeamNotificationService.Infrastructure.Options;
+using Microsoft.Extensions.Options;
 
 namespace TeamNotificationService.Infrastructure.Services.RabbitMq.Consumers;
 
 /// <summary>
 /// Processes every CloudEvent whose data uses CreateNotificationRequestModel.
-/// Declares its organization-event, retry, and dead-letter topology once at
+/// Declares its application-event, retry, and dead-letter topology once at
 /// startup, then consumes the configured queue and publishes configured retries.
 /// </summary>
 public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
@@ -27,15 +30,18 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
     private readonly NotificationPersistence _notificationPersistence;
     private readonly NotificationBellSender _notificationBellSender;
     private readonly NotificationEmailSender _notificationEmailSender;
+    private readonly SourceAppsOptions _sourceAppsOptions;
 
     public NotificationRequestedConsumer(
         NotificationPersistence notificationPersistence,
         NotificationBellSender notificationBellSender,
-        NotificationEmailSender notificationEmailSender)
+        NotificationEmailSender notificationEmailSender,
+        IOptions<SourceAppsOptions> sourceAppsOptions)
     {
         _notificationPersistence = notificationPersistence;
         _notificationBellSender = notificationBellSender;
         _notificationEmailSender = notificationEmailSender;
+        _sourceAppsOptions = sourceAppsOptions.Value;
     }
 
     public async Task HandleAsync(ReadOnlyMemory<byte> body, CancellationToken cancellationToken)
@@ -55,7 +61,7 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
                 innerException: exception);
         }
 
-        Validate(envelope);
+        Validate(envelope, _sourceAppsOptions);
 
         var bellNotifications =
             envelope!.Data.Notification is null
@@ -81,7 +87,9 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
         }
     }
 
-    private static void Validate(CloudEventEnvelope<CreateNotificationRequestModel>? envelope)
+    private static void Validate(
+        CloudEventEnvelope<CreateNotificationRequestModel>? envelope,
+        SourceAppsOptions sourceAppsOptions)
     {
         var notification = envelope?.Data?.Notification;
         var email = envelope?.Data?.Email;
@@ -91,7 +99,7 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
             || string.IsNullOrWhiteSpace(envelope.Source)
             || string.IsNullOrWhiteSpace(envelope.Type)
             || envelope.Data is null
-            || string.IsNullOrWhiteSpace(envelope.Data.SourceApp)
+            || !sourceAppsOptions.IsAllowed(envelope.Data.SourceApp)
             || string.IsNullOrWhiteSpace(envelope.Data.EventType)
             || envelope.Data.CreatedById == Guid.Empty
             || (notification is null && email is null)
@@ -158,6 +166,7 @@ public sealed class NotificationPersistence
         var notification = new Notification
         {
             Id = Guid.CreateVersion7(),
+            SourceApp = envelope.Data.SourceApp,
             Title = payload.Title,
             Content = payload.Message,
             Data = payload.Data is null
@@ -194,6 +203,7 @@ public sealed class NotificationPersistence
                 recipients,
                 (recipient, persistedRecipient) =>
                     new RealtimeBellNotification(
+                        envelope.Data.SourceApp,
                         recipient.UserId,
                         recipient.IdentitySubject,
                         persistedRecipient.Id,
@@ -241,6 +251,7 @@ public sealed class NotificationBellSender
             try
             {
                 await _notificationPublisher.PublishBellNotificationAsync(
+                    bellNotification.SourceApp,
                     bellNotification.IdentitySubject,
                     bellNotification.Notification,
                     cancellationToken);
@@ -441,6 +452,7 @@ public sealed class NotificationEmailSender
 }
 
 public sealed record RealtimeBellNotification(
+    string SourceApp,
     Guid UserId,
     string IdentitySubject,
     Guid NotificationRecipientId,

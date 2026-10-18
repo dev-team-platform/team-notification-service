@@ -3,7 +3,7 @@ using TeamNotificationService.Application.Models.Notifications;
 
 namespace TeamNotificationService.Api.Dtos.V1.Notifications;
 
-public sealed class GetLatelyNotificationForUserResponse
+public sealed class GetLatestNotificationForUserResponse
 {
     public Guid NotificationId { get; init; }
     public string? Title { get; init; }
@@ -13,10 +13,10 @@ public sealed class GetLatelyNotificationForUserResponse
     public bool IsRead { get; init; }
     public DateTimeOffset? ReadAt { get; init; }
 
-    public static GetLatelyNotificationForUserResponse FromModel(
-        GetLatelyNotificationForUserResponseModel model)
+    public static GetLatestNotificationForUserResponse FromModel(
+        GetLatestNotificationForUserResponseModel model)
     {
-        return new GetLatelyNotificationForUserResponse
+        return new GetLatestNotificationForUserResponse
         {
             NotificationId = model.NotificationId,
             Title = model.Title,

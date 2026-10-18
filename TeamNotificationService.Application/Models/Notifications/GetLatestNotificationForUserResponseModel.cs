@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace TeamNotificationService.Application.Models.Notifications;
 
-public sealed class GetLatelyNotificationForUserResponseModel
+public sealed class GetLatestNotificationForUserResponseModel
 {
     public Guid NotificationId { get; init; }
     public string? Title { get; init; }
