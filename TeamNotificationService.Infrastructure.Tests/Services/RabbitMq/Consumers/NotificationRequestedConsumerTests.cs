@@ -170,6 +170,7 @@ public class NotificationRequestedConsumerTests
         savedRecipients.Should().ContainSingle().Which.NotificationId.Should().Be(saved.Id);
         result.Should().ContainSingle().Which.NotificationRecipientId.Should().Be(savedRecipients![0].Id);
         result[0].IdentitySubject.Should().Be("subject");
+        result[0].Notification.SentAt.Should().Be(savedRecipients![0].CreatedAt);
         unit.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -219,11 +220,11 @@ public class NotificationRequestedConsumerTests
         result[0].Notification.NotificationId.Should().Be(existing.Id);
         result[0].Notification.IsRead.Should().BeFalse();
         result[0].Notification.ReadAt.Should().BeNull();
-        result[0].Notification.CreatedAt.Should().Be(createdAt);
-        result[0].Notification.UpdatedAt.Should().Be(existingRecipient.UpdatedAt);
+        result[0].Notification.SentAt.Should().Be(existingRecipient.UpdatedAt);
         added.Should().ContainSingle().Which.UserId.Should().Be(newUserId);
         added![0].UpdatedAt.Should().BeNull();
         result[1].NotificationRecipientId.Should().Be(added![0].Id);
+        result[1].Notification.SentAt.Should().Be(added[0].CreatedAt);
         notifications.Verify(x => x.Add(It.IsAny<Notification>()), Times.Never);
         unit.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
