@@ -1,20 +1,26 @@
 using System.Text.Json;
 using TeamNotificationService.Api.Dtos.Common;
 using TeamNotificationService.Domain.Exceptions;
+using TeamNotificationService.Domain.Utils;
 
 namespace TeamNotificationService.Api.Middlewares;
 
-public class GlobalExceptionHandlerMiddleware(
-    RequestDelegate next,
-    Serilog.ILogger logger)
+public class GlobalExceptionHandlerMiddleware
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly RequestDelegate _next;
+    private readonly Serilog.ILogger _logger;
+
+    public GlobalExceptionHandlerMiddleware(RequestDelegate next, Serilog.ILogger logger)
+    {
+        _next = next;
+        _logger = logger;
+    }
 
     public async Task InvokeAsync(HttpContext context)
     {
         try
         {
-            await next(context);
+            await _next(context);
         }
         catch (Exception exception) when (!context.Response.HasStarted)
         {
@@ -22,7 +28,7 @@ public class GlobalExceptionHandlerMiddleware(
 
             if (statusCode >= StatusCodes.Status500InternalServerError)
             {
-                logger.Error(
+                _logger.Error(
                     exception,
                     "Unhandled exception while processing [{RequestMethod}] {RequestPath}",
                     context.Request.Method,
@@ -30,7 +36,7 @@ public class GlobalExceptionHandlerMiddleware(
             }
             else
             {
-                logger.Warning(
+                _logger.Warning(
                     exception,
                     "Request failed with status code {StatusCode}: [{RequestMethod}] {RequestPath}",
                     statusCode,
@@ -42,7 +48,7 @@ public class GlobalExceptionHandlerMiddleware(
             context.Response.StatusCode = statusCode;
             context.Response.ContentType = "application/json";
 
-            await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonOptions));
+            await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonUtils.SerializerOptions));
         }
     }
 

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography;
-using TeamNotificationService.Api.Options;
+using TeamNotificationService.Infrastructure.Options;
 
 namespace TeamNotificationService.Api.Extensions;
 
@@ -11,19 +11,11 @@ public static class AuthenticationExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services
-            .AddOptions<InternalJwtOptions>()
-            .BindConfiguration(InternalJwtOptions.SectionName)
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "InternalJwt Issuer is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "InternalJwt Audience is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.PublicKeyPemPath), "InternalJwt PublicKeyPem is required.")
-            .ValidateOnStart();
+        var authOptions = configuration
+            .GetRequiredSection(AuthOptions.SectionName)
+            .Get<AuthOptions>()!;
 
-        var internalJwt = configuration
-            .GetRequiredSection(InternalJwtOptions.SectionName)
-            .Get<InternalJwtOptions>()!;
-
-        var publicKeyPem = File.ReadAllText(internalJwt.PublicKeyPemPath);
+        var publicKeyPem = File.ReadAllText(authOptions.InternalJwt.PublicKeyPemPath);
 
         var rsa = RSA.Create();
         rsa.ImportFromPem(publicKeyPem);
@@ -37,9 +29,9 @@ public static class AuthenticationExtensions
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuer = internalJwt.Issuer,
+                    ValidIssuer = authOptions.InternalJwt.Issuer,
                     ValidateAudience = true,
-                    ValidAudience = internalJwt.Audience,
+                    ValidAudience = authOptions.InternalJwt.Audience,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = signingKey,
                     ValidateLifetime = true,

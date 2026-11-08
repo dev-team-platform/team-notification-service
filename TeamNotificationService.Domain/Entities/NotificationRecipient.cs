@@ -8,8 +8,7 @@ public class NotificationRecipient
     public string UserIdentitySubject { get; set; } = null!;
     public bool IsRead { get; set; }
     public DateTimeOffset? ReadAt { get; set; }
-    public bool IsArchived { get; set; }
-    public DateTimeOffset? ArchivedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public Notification? Notification { get; set; }
 }

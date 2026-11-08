@@ -18,11 +18,16 @@ public class NotificationQueryService : INotificationQueryService
         _notificationRepository = notificationRepository;
     }
 
-    public Task<IReadOnlyList<GetUnreadNotificationsResponseModel>> GetUnreadNotificationsAsync(
+    public Task<IReadOnlyList<GetLatestNotificationForUserResponseModel>> GetLatestNotificationForUserAsync(
+        GetLatestNotificationForUserRequestModel model,
         CancellationToken cancellationToken = default)
     {
-        return _notificationRepository.FindUnreadForUserAsync(
+        ArgumentNullException.ThrowIfNull(model);
+
+        return _notificationRepository.FindLatestForUserAsync(
             _currentUserContext.IdentitySubject,
+            model.SourceApp,
+            model.IsUnreadOnly,
             cancellationToken);
     }
 
@@ -32,6 +37,7 @@ public class NotificationQueryService : INotificationQueryService
     {
         var result = await _notificationRepository.FindAllForUserAsync(
             _currentUserContext.IdentitySubject,
+            model.SourceApp,
             model,
             cancellationToken);
 

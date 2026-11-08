@@ -1,6 +1,6 @@
 using TeamNotificationService.Domain.Exceptions;
 using TeamNotificationService.Application.Models.Common;
-using TeamNotificationService.Application.Enums;
+using TeamNotificationService.Domain.Enums.Common;
 
 namespace TeamNotificationService.Api.Utils;
 

@@ -34,4 +34,18 @@ public class AppDbContext : DbContext, IUnitOfWork
             throw ex.ToConflictException(this);
         }
     }
+
+    public override async Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+        {
+            throw ex.ToConflictException(this);
+        }
+    }
 }

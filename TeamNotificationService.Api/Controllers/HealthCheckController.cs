@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
-using TeamNotificationService.Api.Constants;
 using TeamNotificationService.Application.Interfaces.Services;
 
 namespace TeamNotificationService.Api.Controllers;
@@ -8,7 +6,6 @@ namespace TeamNotificationService.Api.Controllers;
 [Route("api/v{version:apiVersion}/notifications")]
 [ApiVersion("1.0")]
 [ApiController]
-[EnableRateLimiting(RateLimiterPolicies.Default)]
 public class HealthCheckController : ControllerBase
 {
     private readonly IHealthCheckService _healthCheckService;

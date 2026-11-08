@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
-using TeamNotificationService.Application.Interfaces.Messaging;
+using TeamNotificationService.Application.Interfaces.Services.Notifications;
 using TeamNotificationService.Application.Models.Notifications;
+using TeamNotificationService.Domain.Constants;
 
 namespace TeamNotificationService.Api.Hubs;
 
@@ -15,10 +16,15 @@ public sealed class SignalRRealtimeNotificationPublisher : IRealtimeNotification
     }
 
     public Task PublishBellNotificationAsync(
+        string sourceApp,
         string identitySubject,
         SendBellNotificationMessage notification,
         CancellationToken cancellationToken = default)
     {
-        return _hubContext.Clients.Group(identitySubject).BellNotification(notification);
+        var sendNotification = notification.Clone();
+        sendNotification.RecipientId = Guid.Empty;
+
+        var groupName = NotificationGroupName.ForUser(sourceApp, identitySubject);
+        return _hubContext.Clients.Group(groupName).BellNotification(sendNotification);
     }
 }

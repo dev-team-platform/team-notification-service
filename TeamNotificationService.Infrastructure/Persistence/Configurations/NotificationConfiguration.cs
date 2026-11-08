@@ -16,6 +16,11 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .HasColumnName("id")
             .IsRequired();
 
+        builder.Property(x => x.SourceApp)
+            .HasColumnName("source_app")
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.Property(x => x.Title)
             .HasColumnName("title")
             .HasMaxLength(255);
@@ -36,6 +41,12 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .HasColumnName("created_at")
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+        builder.Property(x => x.UpdatedAt)
+            .HasColumnName("updated_at");
+
+        builder.Property(x => x.UpdatedById)
+            .HasColumnName("updated_by_id");
 
         builder.HasIndex(x => x.CreatedAt)
             .HasDatabaseName("ix_notifications_created_at");

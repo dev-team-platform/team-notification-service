@@ -25,7 +25,7 @@ public class GetAllNotificationsResponseItem
     public string? Title { get; init; }
     public string? Content { get; init; }
     public JsonElement? Data { get; init; }
-    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset SentAt { get; init; }
     public bool IsRead { get; init; }
     public DateTimeOffset? ReadAt { get; init; }
 
@@ -37,7 +37,7 @@ public class GetAllNotificationsResponseItem
             Title = modelItem.Title,
             Content = modelItem.Content,
             Data = modelItem.Data?.RootElement.Clone(),
-            CreatedAt = modelItem.CreatedAt,
+            SentAt = modelItem.SentAt,
             IsRead = modelItem.IsRead,
             ReadAt = modelItem.ReadAt
         };
