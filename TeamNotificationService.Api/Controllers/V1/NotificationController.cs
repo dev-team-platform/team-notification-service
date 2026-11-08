@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
-using TeamNotificationService.Api.Constants;
 using TeamNotificationService.Api.Dtos.Common;
 using TeamNotificationService.Api.Dtos.V1.Notifications;
 using TeamNotificationService.Application.Interfaces.Services.Notifications;
@@ -14,7 +12,6 @@ namespace TeamNotificationService.Api.V1.Controllers;
 [ApiVersion("1.0")]
 [ApiController]
 [Authorize]
-[EnableRateLimiting(RateLimiterPolicies.Default)]
 public class NotificationController : ControllerBase
 {
     private readonly INotificationQueryService _notificationQueryService;
@@ -49,10 +46,8 @@ public class NotificationController : ControllerBase
             return validationError;
         }
 
-        var result = await _notificationQueryService.GetLatestNotificationForUserAsync(
-            GetLatestNotificationForUserRequest.ToModel(request),
-            cancellationToken);
-
+        var model = GetLatestNotificationForUserRequest.ToModel(request);
+        var result = await _notificationQueryService.GetLatestNotificationForUserAsync(model, cancellationToken);
         var dtoResponse = result.Select(GetLatestNotificationForUserResponse.FromModel).ToList();
 
         return Ok(dtoResponse);
@@ -76,10 +71,8 @@ public class NotificationController : ControllerBase
             return validationError;
         }
 
-        var result = await _notificationQueryService.GetAllNotificationsAsync(
-            GetAllNotificationsRequest.ToModel(request),
-            cancellationToken);
-
+        var model = GetAllNotificationsRequest.ToModel(request);
+        var result = await _notificationQueryService.GetAllNotificationsAsync(model, cancellationToken);
         var dtoResponse = GetAllNotificationsResponse.FromModel(result);
 
         return Ok(dtoResponse);
@@ -103,13 +96,11 @@ public class NotificationController : ControllerBase
             return validationError;
         }
 
-        var result = await _notificationCommandService.MarkNotificationReadAsync(
-            MarkNotificationReadRequest.ToModel(request),
-            cancellationToken);
+        var model = MarkNotificationReadRequest.ToModel(request);
+        var result = await _notificationCommandService.MarkNotificationReadAsync(model, cancellationToken);
+        var dtoResponse = MarkNotificationReadResponse.FromModel(result);
 
-        var dtoReponse = MarkNotificationReadResponse.FromModel(result);
-
-        return Ok(dtoReponse);
+        return Ok(dtoResponse);
     }
 
     private IActionResult? ValidateSourceApp(string? sourceApp)

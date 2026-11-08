@@ -16,7 +16,7 @@ public class GetAllNotificationsRequest : FilterRequest<GetAllNotificationsRespo
             .Map("notificationId", x => x.NotificationId)
             .Map("title", x => x.Title)
             .Map("content", x => x.Content)
-            .Map("createdAt", x => x.CreatedAt)
+            .Map("sentAt", x => x.SentAt)
             .Map("isRead", x => x.IsRead)
             .Map("readAt", x => x.ReadAt);
     }

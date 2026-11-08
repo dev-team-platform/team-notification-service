@@ -9,7 +9,7 @@ public sealed class GetLatestNotificationForUserResponse
     public string? Title { get; init; }
     public string? Content { get; init; }
     public JsonElement? Data { get; init; }
-    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset SentAt { get; init; }
     public bool IsRead { get; init; }
     public DateTimeOffset? ReadAt { get; init; }
 
@@ -22,7 +22,7 @@ public sealed class GetLatestNotificationForUserResponse
             Title = model.Title,
             Content = model.Content,
             Data = model.Data?.RootElement.Clone(),
-            CreatedAt = model.CreatedAt,
+            SentAt = model.SentAt,
             IsRead = model.IsRead,
             ReadAt = model.ReadAt
         };

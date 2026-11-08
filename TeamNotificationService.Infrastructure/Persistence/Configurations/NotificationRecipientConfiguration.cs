@@ -37,13 +37,8 @@ public class NotificationRecipientConfiguration : IEntityTypeConfiguration<Notif
         builder.Property(x => x.ReadAt)
             .HasColumnName("read_at");
 
-        builder.Property(x => x.IsArchived)
-            .HasColumnName("is_archived")
-            .IsRequired()
-            .HasDefaultValue(false);
-
-        builder.Property(x => x.ArchivedAt)
-            .HasColumnName("archived_at");
+        builder.Property(x => x.UpdatedAt)
+            .HasColumnName("updated_at");
 
         builder.Property(x => x.CreatedAt)
             .HasColumnName("created_at")

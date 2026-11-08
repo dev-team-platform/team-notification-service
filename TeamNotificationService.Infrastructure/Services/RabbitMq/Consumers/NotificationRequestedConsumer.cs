@@ -46,11 +46,11 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
 
     public async Task HandleAsync(ReadOnlyMemory<byte> body, CancellationToken cancellationToken)
     {
-        CloudEventEnvelope<CreateNotificationRequestModel>? envelope;
+        CloudEventEnvelope<UpsertNotificationRequestModel>? envelope;
 
         try
         {
-            envelope = JsonSerializer.Deserialize<CloudEventEnvelope<CreateNotificationRequestModel>>(
+            envelope = JsonSerializer.Deserialize<CloudEventEnvelope<UpsertNotificationRequestModel>>(
                 body.Span,
                 JsonUtils.SerializerOptions);
         }
@@ -88,7 +88,7 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
     }
 
     private static void Validate(
-        CloudEventEnvelope<CreateNotificationRequestModel>? envelope,
+        CloudEventEnvelope<UpsertNotificationRequestModel>? envelope,
         SourceAppsOptions sourceAppsOptions)
     {
         var notification = envelope?.Data?.Notification;
@@ -105,8 +105,9 @@ public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
             || (notification is null && email is null)
             || (notification is not null &&
                 (
-                    string.IsNullOrWhiteSpace(notification.Title)
-                    || string.IsNullOrWhiteSpace(notification.Message)
+                    notification.NotificationId == Guid.Empty
+                    || string.IsNullOrWhiteSpace(notification.Title)
+                    || string.IsNullOrWhiteSpace(notification.Content)
                     || notification.Recipients is null
                     || notification.Recipients.Count == 0
                     || notification.Recipients.Any(recipient =>
@@ -155,7 +156,7 @@ public sealed class NotificationPersistence
     }
 
     public async Task<IReadOnlyList<RealtimeBellNotification>> PersistAsync(
-        CloudEventEnvelope<CreateNotificationRequestModel> envelope,
+        CloudEventEnvelope<UpsertNotificationRequestModel> envelope,
         CancellationToken cancellationToken)
     {
         var payload = envelope.Data.Notification
@@ -163,38 +164,87 @@ public sealed class NotificationPersistence
 
         var now = DateTimeOffset.UtcNow;
 
-        var notification = new Notification
-        {
-            Id = Guid.CreateVersion7(),
-            SourceApp = envelope.Data.SourceApp,
-            Title = payload.Title,
-            Content = payload.Message,
-            Data = payload.Data is null
-                ? null
-                : JsonDocument.Parse(payload.Data.RootElement.GetRawText()),
-            CreatedAt = now,
-            CreatedById = envelope.Data.CreatedById
-        };
+        var notification = payload.NotificationId is null
+            ? null
+            : await _notificationRepository.FindFirstByConditionAsync(
+                query => query.Where(item => item.Id == payload.NotificationId),
+                trackChanges: true,
+                cancellationToken: cancellationToken);
 
-        var recipients = payload.Recipients
-            .Select(recipient => new NotificationRecipient
+        if (notification is not null && notification.SourceApp != envelope.Data.SourceApp)
+            throw new NonRetryableMessageException("The notification belongs to a different source app.");
+
+        // A delayed retry of the initial event must not overwrite a completed export.
+        if (notification is not null && envelope.Data.EventType == "user.export.notification.v1"
+            && GetExportStatus(payload.Data) == "InProgress"
+            && GetExportStatus(notification.Data) is "Success" or "Failed")
+            return [];
+
+        var isNew = notification is null;
+        if (isNew)
+        {
+            notification = new Notification
+            {
+                Id = payload.NotificationId ?? Guid.CreateVersion7(),
+                SourceApp = envelope.Data.SourceApp,
+                CreatedAt = now,
+                CreatedById = envelope.Data.CreatedById
+            };
+            _notificationRepository.Add(notification);
+        }
+        else
+        {
+            notification!.UpdatedAt = now;
+            notification.UpdatedById = envelope.Data.UpdatedById;
+        }
+
+        notification!.Title = payload.Title;
+        notification.Content = payload.Content;
+        notification.Data = payload.Data is null
+            ? null
+            : JsonDocument.Parse(payload.Data.RootElement.GetRawText());
+
+        var userIds = payload.Recipients.Select(recipient => recipient.UserId).ToArray();
+        var existingRecipients = isNew
+            ? []
+            : await _notificationRecipientRepository.FindAllByConditionAsync(
+                query => query.Where(item => item.NotificationId == notification.Id && userIds.Contains(item.UserId)),
+                trackChanges: true,
+                cancellationToken: cancellationToken);
+        var recipientsByUser = existingRecipients.ToDictionary(recipient => recipient.UserId);
+        var newRecipients = new List<NotificationRecipient>();
+        var recipients = payload.Recipients.Select(recipient =>
+        {
+            if (recipientsByUser.TryGetValue(recipient.UserId, out var existingRecipient))
+            {
+                existingRecipient.UserIdentitySubject = recipient.IdentitySubject;
+                existingRecipient.IsRead = false;
+                existingRecipient.ReadAt = null;
+                existingRecipient.UpdatedAt = now;
+                return existingRecipient;
+            }
+
+            var newRecipient = new NotificationRecipient
             {
                 Id = Guid.CreateVersion7(),
                 NotificationId = notification.Id,
                 UserId = recipient.UserId,
-                UserIdentitySubject =
-                    recipient.IdentitySubject,
+                UserIdentitySubject = recipient.IdentitySubject,
                 CreatedAt = now
-            })
-            .ToList();
+            };
+            newRecipients.Add(newRecipient);
+            return newRecipient;
+        }).ToList();
 
-        _notificationRepository.Add(notification);
-        _notificationRecipientRepository.AddRange(recipients);
+        if (newRecipients.Count > 0)
+        {
+            _notificationRecipientRepository.AddRange(newRecipients);
+        }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.Information(
-            "Created notification {NotificationId} from message {MessageId}",
+            "Persisted notification {NotificationId} from message {MessageId}",
             notification.Id,
             envelope.Id);
 
@@ -216,12 +266,18 @@ public sealed class NotificationPersistence
                             Data = notification.Data is null
                                 ? null
                                 : JsonDocument.Parse(notification.Data.RootElement.GetRawText()),
-                            IsRead = false,
-                            ReadAt = null,
-                            CreatedAt = notification.CreatedAt
+                            IsRead = persistedRecipient.IsRead,
+                            ReadAt = persistedRecipient.ReadAt,
+                            SentAt = persistedRecipient.UpdatedAt ?? persistedRecipient.CreatedAt,
                         }))
             .ToList();
     }
+
+    private static string? GetExportStatus(JsonDocument? data) =>
+        data is not null && data.RootElement.ValueKind == JsonValueKind.Object
+        && data.RootElement.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String
+            ? status.GetString()
+            : null;
 }
 
 public sealed class NotificationBellSender
@@ -328,7 +384,7 @@ public sealed class NotificationEmailSender
     }
 
     public async Task SendAsync(
-        CloudEventEnvelope<CreateNotificationRequestModel> envelope,
+        CloudEventEnvelope<UpsertNotificationRequestModel> envelope,
         IReadOnlyList<RealtimeBellNotification> persistedRecipients,
         CancellationToken cancellationToken)
     {

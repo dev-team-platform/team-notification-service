@@ -9,7 +9,7 @@ public sealed class SendBellNotificationMessage
     public string? Title { get; init; }
     public string? Content { get; init; }
     public JsonDocument? Data { get; init; }
-    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset SentAt { get; init; }
     public bool IsRead { get; init; }
     public DateTimeOffset? ReadAt { get; init; }
 
@@ -22,9 +22,9 @@ public sealed class SendBellNotificationMessage
             Title = Title,
             Content = Content,
             Data = Data,
-            CreatedAt = CreatedAt,
+            SentAt = SentAt,
             IsRead = IsRead,
-            ReadAt = ReadAt
+            ReadAt = ReadAt,
         };
     }
 }

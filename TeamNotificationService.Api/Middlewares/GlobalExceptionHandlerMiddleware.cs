@@ -5,15 +5,22 @@ using TeamNotificationService.Domain.Utils;
 
 namespace TeamNotificationService.Api.Middlewares;
 
-public class GlobalExceptionHandlerMiddleware(
-    RequestDelegate next,
-    Serilog.ILogger logger)
+public class GlobalExceptionHandlerMiddleware
 {
+    private readonly RequestDelegate _next;
+    private readonly Serilog.ILogger _logger;
+
+    public GlobalExceptionHandlerMiddleware(RequestDelegate next, Serilog.ILogger logger)
+    {
+        _next = next;
+        _logger = logger;
+    }
+
     public async Task InvokeAsync(HttpContext context)
     {
         try
         {
-            await next(context);
+            await _next(context);
         }
         catch (Exception exception) when (!context.Response.HasStarted)
         {
@@ -21,7 +28,7 @@ public class GlobalExceptionHandlerMiddleware(
 
             if (statusCode >= StatusCodes.Status500InternalServerError)
             {
-                logger.Error(
+                _logger.Error(
                     exception,
                     "Unhandled exception while processing [{RequestMethod}] {RequestPath}",
                     context.Request.Method,
@@ -29,7 +36,7 @@ public class GlobalExceptionHandlerMiddleware(
             }
             else
             {
-                logger.Warning(
+                _logger.Warning(
                     exception,
                     "Request failed with status code {StatusCode}: [{RequestMethod}] {RequestPath}",
                     statusCode,

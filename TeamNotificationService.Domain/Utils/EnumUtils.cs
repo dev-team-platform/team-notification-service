@@ -1,5 +1,4 @@
 using TeamNotificationService.Domain.Exceptions;
-
 namespace TeamNotificationService.Domain.Utils;
 
 public static class EnumUtils
@@ -32,17 +31,22 @@ public static class EnumUtils
             throw new UnprocessableEntityException("T must be an enumerated type");
         }
 
-        if (!Enum.IsDefined(typeof(T), enumValue))
+        return ToString((Enum)(object)enumValue);
+    }
+
+    public static string ToString(Enum enumValue)
+    {
+        if (!Enum.IsDefined(enumValue.GetType(), enumValue))
         {
             throw new UnprocessableEntityException(
                 "This is not a valid value for the enum.",
                 new Dictionary<string, object?>
                 {
-                    ["enumType"] = typeof(T).Name,
+                    ["enumType"] = enumValue.GetType().Name,
                     ["enumValue"] = enumValue
                 });
         }
 
-        return enumValue.ToString()!;
+        return enumValue.ToString();
     }
 }
