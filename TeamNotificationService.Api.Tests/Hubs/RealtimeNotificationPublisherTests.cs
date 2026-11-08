@@ -13,7 +13,7 @@ public class RealtimeNotificationPublisherTests
     public async Task PublishBellNotificationAsync_ShouldSendSanitizedCopyToUserGroup_WhenCalled()
     {
         var recipient = Guid.NewGuid();
-        var message = new SendBellNotificationMessage { NotificationId = Guid.NewGuid(), RecipientId = recipient, Title = "Title", UpdatedAt = DateTimeOffset.UtcNow };
+        var message = new SendBellNotificationMessage { NotificationId = Guid.NewGuid(), RecipientId = recipient, Title = "Title", SentAt = DateTimeOffset.UtcNow };
         SendBellNotificationMessage? sent = null;
         var client = new Mock<INotificationClient>();
         client.Setup(x => x.BellNotification(It.IsAny<SendBellNotificationMessage>()))
@@ -27,7 +27,7 @@ public class RealtimeNotificationPublisherTests
 
         sent.Should().NotBeNull(); sent.Should().NotBeSameAs(message);
         sent!.RecipientId.Should().BeEmpty(); sent.NotificationId.Should().Be(message.NotificationId);
-        sent.UpdatedAt.Should().Be(message.UpdatedAt);
+        sent.SentAt.Should().Be(message.SentAt);
         message.RecipientId.Should().Be(recipient);
         clients.Verify(x => x.Group("app:subject"), Times.Once);
     }
