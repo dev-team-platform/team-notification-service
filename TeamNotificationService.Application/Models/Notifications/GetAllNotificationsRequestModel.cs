@@ -4,13 +4,15 @@ namespace TeamNotificationService.Application.Models.Notifications;
 
 public class GetAllNotificationsRequestModel : FilterQuery<GetAllNotificationsResponseModelItem>
 {
+    public string SourceApp { get; init; } = null!;
+
     public override FilterQueryMap<GetAllNotificationsResponseModelItem> GetFilterQueryMap()
     {
         return new FilterQueryMap<GetAllNotificationsResponseModelItem>()
             .Map("notificationId", x => x.NotificationId)
             .Map("title", x => x.Title)
             .Map("content", x => x.Content)
-            .Map("createdAt", x => x.CreatedAt)
+            .Map("sentAt", x => x.SentAt)
             .Map("isRead", x => x.IsRead)
             .Map("readAt", x => x.ReadAt);
     }

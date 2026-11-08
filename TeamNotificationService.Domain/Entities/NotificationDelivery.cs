@@ -1,4 +1,4 @@
-using TeamNotificationService.Domain.Enums;
+using TeamNotificationService.Domain.Enums.NotificationDeliveries;
 
 namespace TeamNotificationService.Domain.Entities;
 

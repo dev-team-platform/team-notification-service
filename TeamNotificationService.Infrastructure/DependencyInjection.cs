@@ -2,15 +2,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using TeamNotificationService.Infrastructure.Options;
 using RabbitMQ.Client;
-using TeamNotificationService.Infrastructure.Messaging;
 using Microsoft.EntityFrameworkCore;
 using TeamNotificationService.Infrastructure.Persistence;
 using TeamNotificationService.Application.Interfaces.Repositories;
 using TeamNotificationService.Infrastructure.Repositories;
 using TeamNotificationService.Application.Interfaces.Services.Emails;
-using TeamNotificationService.Infrastructure.Services;
 using TeamNotificationService.Application.Interfaces.Contexts;
 using TeamNotificationService.Infrastructure.Contexts;
+using TeamNotificationService.Infrastructure.Services.RabbitMq;
+using TeamNotificationService.Infrastructure.Services.Email;
+using TeamNotificationService.Application.Interfaces.Services.Messaging;
+using TeamNotificationService.Infrastructure.Services.RabbitMq.Consumers;
 
 namespace TeamNotificationService.Infrastructure;
 
@@ -20,6 +22,24 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services
+            .AddOptions<AuthOptions>()
+            .BindConfiguration(AuthOptions.SectionName)
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.Issuer), "InternalJwt Issuer is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.Audience), "InternalJwt Audience is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.InternalJwt.PublicKeyPemPath), "InternalJwt PublicKeyPem is required.")
+            .ValidateOnStart();
+
+        services
+            .AddOptions<SourceAppsOptions>()
+            .BindConfiguration(SourceAppsOptions.SectionName)
+            .Validate(
+                options => options.Allowed is { Length: > 0 } allowed
+                    && allowed.All(sourceApp => !string.IsNullOrWhiteSpace(sourceApp))
+                    && allowed.Distinct(StringComparer.Ordinal).Count() == allowed.Length,
+                "SourceApps Allowed must contain non-empty, unique source app names.")
+            .ValidateOnStart();
+
         services
             .AddOptions<RabbitMqOptions>()
             .BindConfiguration(RabbitMqOptions.SectionName)
@@ -38,40 +58,6 @@ public static class DependencyInjection
             .Validate(
                 options => !string.IsNullOrWhiteSpace(options.VirtualHost),
                 "RabbitMq VirtualHost is required.")
-            .Validate(
-                options => !string.IsNullOrWhiteSpace(options.Consumer.Name),
-                "RabbitMq Consumer:Name is required.")
-            .Validate(
-                options => !string.IsNullOrWhiteSpace(options.Consumer.Queue),
-                "RabbitMq Consumer:Queue is required.")
-            .Validate(
-                options => options.Consumer.PrefetchCount > 0,
-                "RabbitMq Consumer:PrefetchCount must be greater than zero.")
-            .Validate(
-                options => options.Consumer.ReconnectDelaySeconds > 0,
-                "RabbitMq Consumer:ReconnectDelaySeconds must be greater than zero.")
-            .Validate(
-                options => !string.IsNullOrWhiteSpace(options.Consumer.RetryAttemptHeader),
-                "RabbitMq Consumer:RetryAttemptHeader is required.")
-            .Validate(
-                options => !string.IsNullOrWhiteSpace(options.Topology.OrganizationService.Exchange)
-                    && options.Topology.OrganizationService.RoutingKeys.Count > 0
-                    && options.Topology.OrganizationService.RoutingKeys.All(
-                        routingKey => !string.IsNullOrWhiteSpace(routingKey)),
-                "RabbitMq Topology:OrganizationService must define an exchange and at least one routing key.")
-            .Validate(
-                options => !string.IsNullOrWhiteSpace(options.Topology.DeadLetterExchange)
-                    && !string.IsNullOrWhiteSpace(options.Topology.DeadLetterQueue)
-                    && !string.IsNullOrWhiteSpace(options.Topology.RetryExchange)
-                    && !string.IsNullOrWhiteSpace(options.Topology.RetryReturnExchange),
-                "RabbitMq topology exchanges and dead-letter queue are required.")
-            .Validate(
-                options => options.Topology.RetryQueues.Count == 3
-                    && options.Topology.RetryQueues.All(retry =>
-                        !string.IsNullOrWhiteSpace(retry.Queue)
-                        && !string.IsNullOrWhiteSpace(retry.RoutingKey)
-                        && retry.MessageTtlMilliseconds > 0),
-                "RabbitMq Topology:RetryQueues must define the three delayed retry queues.")
             .ValidateOnStart();
 
         services
@@ -125,11 +111,17 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<RabbitMqConnection>();
-        services.AddSingleton<NotificationPersistence>();
-        services.AddSingleton<NotificationBellSender>();
-        services.AddSingleton<NotificationEmailSender>();
-        services.AddHostedService<NotificationConsumer>();
+        services.AddSingleton<RabbitMqTopologyInitializer>();
+        services.AddHostedService<RabbitMqConsumerHostedService>();
+        services.AddSingleton<RabbitMqPublisherHostedService>();
+        services.AddHostedService(sp => sp.GetRequiredService<RabbitMqPublisherHostedService>());
 
+        services.AddKeyedScoped<IMessagingConsumerHandler, NotificationRequestedConsumer>("NotificationRequested");
+        services.AddScoped<NotificationPersistence>();
+        services.AddScoped<NotificationBellSender>();
+        services.AddScoped<NotificationEmailSender>();
+
+        // Email
         services.AddSingleton<EmailService>();
         services.AddSingleton<IEmailService>(sp => sp.GetRequiredService<EmailService>());
         services.AddHostedService(sp => sp.GetRequiredService<EmailService>());

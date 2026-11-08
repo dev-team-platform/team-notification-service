@@ -27,13 +27,15 @@ public class NotificationCommandService : INotificationCommandService
         CancellationToken cancellationToken = default)
     {
         var identitySubject = _currentUserContext.IdentitySubject;
+        var sourceApp = requestModel.SourceApp;
         var now = DateTimeOffset.UtcNow;
 
         if (requestModel.IsAll)
         {
-            var unreadRecipients = await _notificationRecipientRepository.FindAllByConditionAsync(
-                query => query.Where(recipient =>
-                    recipient.UserIdentitySubject == identitySubject && !recipient.IsRead),
+            var unreadRecipients = await _notificationRecipientRepository.FindForUserAndSourceAppAsync(
+                identitySubject,
+                sourceApp,
+                unreadOnly: true,
                 trackChanges: true,
                 cancellationToken: cancellationToken);
 
@@ -50,30 +52,36 @@ public class NotificationCommandService : INotificationCommandService
             };
         }
 
-        if (requestModel.NotificationId is null)
+        var notificationIds = requestModel.NotificationIds.Distinct().ToArray();
+        if (notificationIds.Length == 0)
         {
             throw new UnprocessableEntityException(
-                "NotificationId is required when IsAll is false.");
+                "At least one notification ID is required when IsAll is false.");
         }
 
-        var notificationRecipient = await _notificationRecipientRepository.FindFirstByConditionAsync(
-            query => query.Where(recipient =>
-                recipient.NotificationId == requestModel.NotificationId.Value
-                && recipient.UserIdentitySubject == identitySubject),
+        var notificationRecipients = await _notificationRecipientRepository.FindForUserAndSourceAppAsync(
+            identitySubject,
+            sourceApp,
+            notificationIds,
             trackChanges: true,
             cancellationToken: cancellationToken);
 
-        if (notificationRecipient is null)
+        if (notificationRecipients.Count != notificationIds.Length)
         {
             throw new NotFoundException("Notification was not found.");
         }
 
         var markedCount = 0;
-        if (!notificationRecipient.IsRead)
+        foreach (var notificationRecipient in notificationRecipients)
         {
+            if (notificationRecipient.IsRead)
+            {
+                continue;
+            }
+
             notificationRecipient.IsRead = true;
             notificationRecipient.ReadAt = now;
-            markedCount = 1;
+            markedCount++;
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

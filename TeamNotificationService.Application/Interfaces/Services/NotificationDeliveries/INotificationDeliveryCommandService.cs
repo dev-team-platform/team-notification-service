@@ -1,4 +1,4 @@
-using TeamNotificationService.Application.Models.Notifications;
+using TeamNotificationService.Application.Models.NotificationDeliveries;
 
 namespace TeamNotificationService.Application.Interfaces.Services.NotificationDeliveries;
 

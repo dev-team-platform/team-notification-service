@@ -1,0 +1,515 @@
+using HandlebarsDotNet;
+using TeamNotificationService.Application.Interfaces.Services.Notifications;
+using TeamNotificationService.Application.Interfaces.Repositories;
+using TeamNotificationService.Application.Interfaces.Services.Emails;
+using TeamNotificationService.Application.Interfaces.Services.NotificationDeliveries;
+using TeamNotificationService.Application.Models.Emails;
+using TeamNotificationService.Application.Models.Notifications;
+using TeamNotificationService.Domain.Entities;
+using TeamNotificationService.Domain.Exceptions;
+using TeamNotificationService.Domain.Utils;
+using TeamNotificationService.Application.Interfaces.Services.Messaging;
+using System.Text.Json;
+using TeamNotificationService.Infrastructure.Services.Email;
+using TeamNotificationService.Application.Models.Messaging.Consuming;
+using TeamNotificationService.Application.Models.NotificationDeliveries;
+using TeamNotificationService.Domain.Enums.NotificationDeliveries;
+using TeamNotificationService.Domain.Constants;
+using TeamNotificationService.Infrastructure.Options;
+using Microsoft.Extensions.Options;
+
+namespace TeamNotificationService.Infrastructure.Services.RabbitMq.Consumers;
+
+/// <summary>
+/// Processes every CloudEvent whose data uses CreateNotificationRequestModel.
+/// Declares its application-event, retry, and dead-letter topology once at
+/// startup, then consumes the configured queue and publishes configured retries.
+/// </summary>
+public sealed class NotificationRequestedConsumer : IMessagingConsumerHandler
+{
+    private readonly NotificationPersistence _notificationPersistence;
+    private readonly NotificationBellSender _notificationBellSender;
+    private readonly NotificationEmailSender _notificationEmailSender;
+    private readonly SourceAppsOptions _sourceAppsOptions;
+
+    public NotificationRequestedConsumer(
+        NotificationPersistence notificationPersistence,
+        NotificationBellSender notificationBellSender,
+        NotificationEmailSender notificationEmailSender,
+        IOptions<SourceAppsOptions> sourceAppsOptions)
+    {
+        _notificationPersistence = notificationPersistence;
+        _notificationBellSender = notificationBellSender;
+        _notificationEmailSender = notificationEmailSender;
+        _sourceAppsOptions = sourceAppsOptions.Value;
+    }
+
+    public async Task HandleAsync(ReadOnlyMemory<byte> body, CancellationToken cancellationToken)
+    {
+        CloudEventEnvelope<UpsertNotificationRequestModel>? envelope;
+
+        try
+        {
+            envelope = JsonSerializer.Deserialize<CloudEventEnvelope<UpsertNotificationRequestModel>>(
+                body.Span,
+                JsonUtils.SerializerOptions);
+        }
+        catch (JsonException exception)
+        {
+            throw new NonRetryableMessageException(
+                "The notification request contains invalid JSON.",
+                innerException: exception);
+        }
+
+        Validate(envelope, _sourceAppsOptions);
+
+        var bellNotifications =
+            envelope!.Data.Notification is null
+                ? []
+                : await _notificationPersistence.PersistAsync(
+                    envelope,
+                    cancellationToken);
+
+        await _notificationBellSender.SendAsync(
+            bellNotifications,
+            cancellationToken);
+
+        try
+        {
+            await _notificationEmailSender.SendAsync(
+                envelope,
+                bellNotifications,
+                cancellationToken);
+        }
+        catch (InvalidEmailTemplateException exception)
+        {
+            throw new NonRetryableMessageException(exception.Message, exception.Details, exception);
+        }
+    }
+
+    private static void Validate(
+        CloudEventEnvelope<UpsertNotificationRequestModel>? envelope,
+        SourceAppsOptions sourceAppsOptions)
+    {
+        var notification = envelope?.Data?.Notification;
+        var email = envelope?.Data?.Email;
+
+        if (envelope is null
+            || envelope.Id == Guid.Empty
+            || string.IsNullOrWhiteSpace(envelope.Source)
+            || string.IsNullOrWhiteSpace(envelope.Type)
+            || envelope.Data is null
+            || !sourceAppsOptions.IsAllowed(envelope.Data.SourceApp)
+            || string.IsNullOrWhiteSpace(envelope.Data.EventType)
+            || envelope.Data.CreatedById == Guid.Empty
+            || (notification is null && email is null)
+            || (notification is not null &&
+                (
+                    notification.NotificationId == Guid.Empty
+                    || string.IsNullOrWhiteSpace(notification.Title)
+                    || string.IsNullOrWhiteSpace(notification.Content)
+                    || notification.Recipients is null
+                    || notification.Recipients.Count == 0
+                    || notification.Recipients.Any(recipient =>
+                        recipient.UserId == Guid.Empty
+                        || string.IsNullOrWhiteSpace(recipient.IdentitySubject))
+                    || notification.Recipients
+                        .Select(recipient => recipient.UserId)
+                        .Distinct()
+                        .Count() != notification.Recipients.Count
+                ))
+            || (email is not null &&
+                (
+                    string.IsNullOrWhiteSpace(email.TemplateKey)
+                    || email.Recipients is null
+                    || email.Recipients.Count == 0
+                    || email.Recipients.Any(recipient => recipient.UserId == Guid.Empty
+                        || string.IsNullOrWhiteSpace(recipient.Email))
+                    || email.Recipients
+                        .Select(recipient => recipient.UserId)
+                        .Distinct()
+                        .Count() != email.Recipients.Count
+                )))
+        {
+            throw new NonRetryableMessageException("The message is not a valid notification request CloudEvent.");
+        }
+    }
+}
+
+public sealed class NotificationPersistence
+{
+    private readonly INotificationRepository _notificationRepository;
+    private readonly INotificationRecipientRepository _notificationRecipientRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly Serilog.ILogger _logger;
+
+    public NotificationPersistence(
+        INotificationRepository notificationRepository,
+        INotificationRecipientRepository notificationRecipientRepository,
+        IUnitOfWork unitOfWork,
+        Serilog.ILogger logger)
+    {
+        _notificationRepository = notificationRepository;
+        _notificationRecipientRepository = notificationRecipientRepository;
+        _unitOfWork = unitOfWork;
+        _logger = logger;
+    }
+
+    public async Task<IReadOnlyList<RealtimeBellNotification>> PersistAsync(
+        CloudEventEnvelope<UpsertNotificationRequestModel> envelope,
+        CancellationToken cancellationToken)
+    {
+        var payload = envelope.Data.Notification
+            ?? throw new NonRetryableMessageException("The notification payload is required for persistence.");
+
+        var now = DateTimeOffset.UtcNow;
+
+        var notification = payload.NotificationId is null
+            ? null
+            : await _notificationRepository.FindFirstByConditionAsync(
+                query => query.Where(item => item.Id == payload.NotificationId),
+                trackChanges: true,
+                cancellationToken: cancellationToken);
+
+        if (notification is not null && notification.SourceApp != envelope.Data.SourceApp)
+            throw new NonRetryableMessageException("The notification belongs to a different source app.");
+
+        // A delayed retry of the initial event must not overwrite a completed export.
+        if (notification is not null && envelope.Data.EventType == "user.export.notification.v1"
+            && GetExportStatus(payload.Data) == "InProgress"
+            && GetExportStatus(notification.Data) is "Success" or "Failed")
+            return [];
+
+        var isNew = notification is null;
+        if (isNew)
+        {
+            notification = new Notification
+            {
+                Id = payload.NotificationId ?? Guid.CreateVersion7(),
+                SourceApp = envelope.Data.SourceApp,
+                CreatedAt = now,
+                CreatedById = envelope.Data.CreatedById
+            };
+            _notificationRepository.Add(notification);
+        }
+        else
+        {
+            notification!.UpdatedAt = now;
+            notification.UpdatedById = envelope.Data.UpdatedById;
+        }
+
+        notification!.Title = payload.Title;
+        notification.Content = payload.Content;
+        notification.Data = payload.Data is null
+            ? null
+            : JsonDocument.Parse(payload.Data.RootElement.GetRawText());
+
+        var userIds = payload.Recipients.Select(recipient => recipient.UserId).ToArray();
+        var existingRecipients = isNew
+            ? []
+            : await _notificationRecipientRepository.FindAllByConditionAsync(
+                query => query.Where(item => item.NotificationId == notification.Id && userIds.Contains(item.UserId)),
+                trackChanges: true,
+                cancellationToken: cancellationToken);
+        var recipientsByUser = existingRecipients.ToDictionary(recipient => recipient.UserId);
+        var newRecipients = new List<NotificationRecipient>();
+        var recipients = payload.Recipients.Select(recipient =>
+        {
+            if (recipientsByUser.TryGetValue(recipient.UserId, out var existingRecipient))
+            {
+                existingRecipient.UserIdentitySubject = recipient.IdentitySubject;
+                existingRecipient.IsRead = false;
+                existingRecipient.ReadAt = null;
+                existingRecipient.UpdatedAt = now;
+                return existingRecipient;
+            }
+
+            var newRecipient = new NotificationRecipient
+            {
+                Id = Guid.CreateVersion7(),
+                NotificationId = notification.Id,
+                UserId = recipient.UserId,
+                UserIdentitySubject = recipient.IdentitySubject,
+                CreatedAt = now
+            };
+            newRecipients.Add(newRecipient);
+            return newRecipient;
+        }).ToList();
+
+        if (newRecipients.Count > 0)
+        {
+            _notificationRecipientRepository.AddRange(newRecipients);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.Information(
+            "Persisted notification {NotificationId} from message {MessageId}",
+            notification.Id,
+            envelope.Id);
+
+        return payload.Recipients
+            .Zip(
+                recipients,
+                (recipient, persistedRecipient) =>
+                    new RealtimeBellNotification(
+                        envelope.Data.SourceApp,
+                        recipient.UserId,
+                        recipient.IdentitySubject,
+                        persistedRecipient.Id,
+                        new SendBellNotificationMessage
+                        {
+                            NotificationId = notification.Id,
+                            RecipientId = persistedRecipient.Id,
+                            Title = notification.Title,
+                            Content = notification.Content,
+                            Data = notification.Data is null
+                                ? null
+                                : JsonDocument.Parse(notification.Data.RootElement.GetRawText()),
+                            IsRead = persistedRecipient.IsRead,
+                            ReadAt = persistedRecipient.ReadAt,
+                            SentAt = persistedRecipient.UpdatedAt ?? persistedRecipient.CreatedAt,
+                        }))
+            .ToList();
+    }
+
+    private static string? GetExportStatus(JsonDocument? data) =>
+        data is not null && data.RootElement.ValueKind == JsonValueKind.Object
+        && data.RootElement.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String
+            ? status.GetString()
+            : null;
+}
+
+public sealed class NotificationBellSender
+{
+    private readonly IRealtimeNotificationPublisher _notificationPublisher;
+    private readonly INotificationDeliveryCommandService _deliveryCommandService;
+    private readonly Serilog.ILogger _logger;
+
+    public NotificationBellSender(
+        IRealtimeNotificationPublisher notificationPublisher,
+        INotificationDeliveryCommandService deliveryCommandService,
+        Serilog.ILogger logger)
+    {
+        _notificationPublisher = notificationPublisher;
+        _deliveryCommandService = deliveryCommandService;
+        _logger = logger;
+    }
+
+    public async Task SendAsync(
+        IReadOnlyList<RealtimeBellNotification> notifications,
+        CancellationToken cancellationToken)
+    {
+        foreach (var bellNotification in notifications)
+        {
+            Exception? publishException = null;
+
+            try
+            {
+                await _notificationPublisher.PublishBellNotificationAsync(
+                    bellNotification.SourceApp,
+                    bellNotification.IdentitySubject,
+                    bellNotification.Notification,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                publishException = exception;
+            }
+
+            // Keep delivery tracking outside the publish try/catch. If this database
+            // write fails, treating it as a failed push would retry the same tracking
+            // operation and leave the first failed entity in the DbContext.
+            await MarkDeliveryAsync(
+                bellNotification.NotificationRecipientId,
+                bellNotification.IdentitySubject,
+                delivered: publishException is null,
+                error: publishException?.Message,
+                cancellationToken);
+
+            if (publishException is not null)
+            {
+                _logger.Warning(
+                    publishException,
+                    "Bell notification {NotificationId} was stored but could not be pushed to user {IdentitySubject}",
+                    bellNotification.Notification.NotificationId,
+                    bellNotification.IdentitySubject);
+            }
+        }
+    }
+
+    private Task MarkDeliveryAsync(
+        Guid notificationRecipientId,
+        string identitySubject,
+        bool delivered,
+        string? error,
+        CancellationToken cancellationToken)
+    {
+        return _deliveryCommandService.UpsertDeliveryAsync(
+            new UpsertNotificationDeliveryRequestModel
+            {
+                NotificationRecipientId = notificationRecipientId,
+                Channel = EnumUtils.ToString(ChannelType.Bell),
+                Status = delivered
+                    ? EnumUtils.ToString(DeliveryStatus.Delivered)
+                    : EnumUtils.ToString(DeliveryStatus.Failed),
+                Destination = identitySubject,
+                LastError = error
+            },
+            cancellationToken);
+    }
+}
+
+public sealed class NotificationEmailSender
+{
+    private readonly IEmailTemplateRepository _emailTemplateRepository;
+    private readonly INotificationDeliveryCommandService _deliveryCommandService;
+    private readonly IEmailService _emailService;
+    private readonly Serilog.ILogger _logger;
+
+    public NotificationEmailSender(
+        IEmailTemplateRepository emailTemplateRepository,
+        INotificationDeliveryCommandService deliveryCommandService,
+        IEmailService emailService,
+        Serilog.ILogger logger)
+    {
+        _emailTemplateRepository = emailTemplateRepository;
+        _deliveryCommandService = deliveryCommandService;
+        _emailService = emailService;
+        _logger = logger;
+    }
+
+    public async Task SendAsync(
+        CloudEventEnvelope<UpsertNotificationRequestModel> envelope,
+        IReadOnlyList<RealtimeBellNotification> persistedRecipients,
+        CancellationToken cancellationToken)
+    {
+        var email = envelope.Data.Email;
+
+        if (email is null)
+            return;
+
+        var template = await _emailTemplateRepository.FindFirstByConditionAsync(
+                    query => query.Where(item =>
+                        item.IsActive
+                        && item.TemplateKey == email.TemplateKey),
+                    cancellationToken: cancellationToken)
+            ?? throw new NotFoundException($"Email template with key '{email.TemplateKey}' not found.");
+
+        var subject = HandlebarsEmailBinder.BindTemplate(template.SubjectTemplate, email.Data);
+
+        var body = HandlebarsEmailBinder.BindTemplate(template.BodyTemplate, email.Data);
+
+        var notificationRecipientIds = persistedRecipients.ToDictionary(
+            item => item.UserId,
+            item => item.NotificationRecipientId);
+
+        foreach (var recipient in email.Recipients)
+        {
+            notificationRecipientIds.TryGetValue(
+                recipient.UserId,
+                out var notificationRecipientId);
+
+            Exception? queueException = null;
+
+            try
+            {
+                await _emailService.QueueEmailAsync(
+                    new SendEmailToRecipientRequestModel
+                    {
+                        FromEmail = email.FromEmail,
+                        FromName = email.FromName,
+                        ToEmail = recipient.Email,
+                        Subject = subject,
+                        Body = body
+                    },
+                    cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                queueException = exception;
+            }
+
+            if (notificationRecipientId == Guid.Empty)
+            {
+                if (queueException is null)
+                {
+                    _logger.Warning(
+                        "Email for recipient {Recipient} was queued but delivery tracking was skipped because no persisted notification recipient was found",
+                        recipient.Email);
+                }
+                else
+                {
+                    _logger.Warning(
+                        queueException,
+                        "Email using template {TemplateKey} could not be queued for recipient {Recipient}",
+                        email.TemplateKey,
+                        recipient.Email);
+                }
+
+                continue;
+            }
+
+            await MarkDeliveryAsync(
+                notificationRecipientId,
+                recipient.Email,
+                delivered: queueException is null,
+                error: queueException?.Message,
+                cancellationToken);
+
+            if (queueException is null)
+            {
+                _logger.Information(
+                    "Queued email using template {TemplateKey} for recipient {Recipient}",
+                    email.TemplateKey,
+                    recipient.Email);
+            }
+            else
+            {
+                _logger.Warning(
+                    queueException,
+                    "Email using template {TemplateKey} could not be queued for recipient {Recipient}",
+                    email.TemplateKey,
+                    recipient.Email);
+            }
+        }
+    }
+
+    private Task MarkDeliveryAsync(
+        Guid notificationRecipientId,
+        string email,
+        bool delivered,
+        string? error,
+        CancellationToken cancellationToken)
+    {
+        return _deliveryCommandService.UpsertDeliveryAsync(
+            new UpsertNotificationDeliveryRequestModel
+            {
+                NotificationRecipientId = notificationRecipientId,
+                Channel = EnumUtils.ToString(ChannelType.Email),
+                Status = delivered
+                    ? EnumUtils.ToString(DeliveryStatus.Delivered)
+                    : EnumUtils.ToString(DeliveryStatus.Failed),
+                Destination = email,
+                LastError = error
+            },
+            cancellationToken);
+    }
+
+
+}
+
+public sealed record RealtimeBellNotification(
+    string SourceApp,
+    Guid UserId,
+    string IdentitySubject,
+    Guid NotificationRecipientId,
+    SendBellNotificationMessage Notification);
