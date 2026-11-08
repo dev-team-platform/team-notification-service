@@ -6,12 +6,15 @@ namespace TeamNotificationService.Application.Interfaces.Repositories;
 
 public interface INotificationRepository : IGenericRepository<Notification>
 {
-    Task<IReadOnlyList<GetLatelyNotificationForUserResponseModel>> FindLatelyForUserAsync(
+    Task<IReadOnlyList<GetLatestNotificationForUserResponseModel>> FindLatestForUserAsync(
         string userIdentitySubject,
+        string sourceApp,
+        bool isUnreadOnly,
         CancellationToken cancellationToken = default);
 
     Task<FilterResult<GetAllNotificationsResponseModelItem>> FindAllForUserAsync(
         string userIdentitySubject,
+        string sourceApp,
         FilterQuery<GetAllNotificationsResponseModelItem> query,
         CancellationToken cancellationToken = default);
 }

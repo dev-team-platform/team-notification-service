@@ -4,8 +4,8 @@ namespace TeamNotificationService.Application.Interfaces.Services.Notifications;
 
 public interface INotificationQueryService
 {
-    Task<IReadOnlyList<GetLatelyNotificationForUserResponseModel>> GetLatelyNotificationForUserAsync(
-        GetLatelyNotificationForUserRequestModel model,
+    Task<IReadOnlyList<GetLatestNotificationForUserResponseModel>> GetLatestNotificationForUserAsync(
+        GetLatestNotificationForUserRequestModel model,
         CancellationToken cancellationToken = default);
 
     Task<GetAllNotificationsReponseModel> GetAllNotificationsAsync(

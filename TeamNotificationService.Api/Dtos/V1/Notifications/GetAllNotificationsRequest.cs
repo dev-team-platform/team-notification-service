@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using TeamNotificationService.Api.Dtos.Common;
 using TeamNotificationService.Application.Models.Notifications;
@@ -6,13 +7,16 @@ namespace TeamNotificationService.Api.Dtos.V1.Notifications;
 
 public class GetAllNotificationsRequest : FilterRequest<GetAllNotificationsResponseItem>
 {
+    [Required]
+    public string SourceApp { get; set; } = null!;
+
     public override FilterQueryMapRequest<GetAllNotificationsResponseItem> GetFilterRequestMap()
     {
         return new FilterQueryMapRequest<GetAllNotificationsResponseItem>()
             .Map("notificationId", x => x.NotificationId)
             .Map("title", x => x.Title)
             .Map("content", x => x.Content)
-            .Map("createdAt", x => x.CreatedAt)
+            .Map("sentAt", x => x.SentAt)
             .Map("isRead", x => x.IsRead)
             .Map("readAt", x => x.ReadAt);
     }
@@ -21,6 +25,7 @@ public class GetAllNotificationsRequest : FilterRequest<GetAllNotificationsRespo
     {
         return new GetAllNotificationsRequestModel
         {
+            SourceApp = request.SourceApp,
             CurrentPage = request.CurrentPage,
             ItemsPerPage = request.ItemsPerPage,
             SearchGlobalText = request.SearchGlobalText,

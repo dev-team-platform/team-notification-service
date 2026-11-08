@@ -27,13 +27,15 @@ public class NotificationCommandService : INotificationCommandService
         CancellationToken cancellationToken = default)
     {
         var identitySubject = _currentUserContext.IdentitySubject;
+        var sourceApp = requestModel.SourceApp;
         var now = DateTimeOffset.UtcNow;
 
         if (requestModel.IsAll)
         {
-            var unreadRecipients = await _notificationRecipientRepository.FindAllByConditionAsync(
-                query => query.Where(recipient =>
-                    recipient.UserIdentitySubject == identitySubject && !recipient.IsRead),
+            var unreadRecipients = await _notificationRecipientRepository.FindForUserAndSourceAppAsync(
+                identitySubject,
+                sourceApp,
+                unreadOnly: true,
                 trackChanges: true,
                 cancellationToken: cancellationToken);
 
@@ -57,10 +59,10 @@ public class NotificationCommandService : INotificationCommandService
                 "At least one notification ID is required when IsAll is false.");
         }
 
-        var notificationRecipients = await _notificationRecipientRepository.FindAllByConditionAsync(
-            query => query.Where(recipient =>
-                notificationIds.Contains(recipient.NotificationId)
-                && recipient.UserIdentitySubject == identitySubject),
+        var notificationRecipients = await _notificationRecipientRepository.FindForUserAndSourceAppAsync(
+            identitySubject,
+            sourceApp,
+            notificationIds,
             trackChanges: true,
             cancellationToken: cancellationToken);
 

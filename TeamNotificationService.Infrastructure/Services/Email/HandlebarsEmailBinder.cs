@@ -25,8 +25,7 @@ public static class HandlebarsEmailBinder
     {
         if (root is not { ValueKind: JsonValueKind.Object } objectRoot)
         {
-            return new Dictionary<string, object?>(
-                StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         }
 
         return ToHandlebarsObject(objectRoot);
@@ -48,16 +47,14 @@ public static class HandlebarsEmailBinder
     {
         return value.ValueKind switch
         {
-            JsonValueKind.Object =>
-                ToHandlebarsObject(value),
+            JsonValueKind.Object => ToHandlebarsObject(value),
 
             JsonValueKind.Array =>
                 value.EnumerateArray()
                     .Select(ToHandlebarsValue)
                     .ToList(),
 
-            JsonValueKind.String =>
-                value.GetString(),
+            JsonValueKind.String => value.GetString(),
 
             JsonValueKind.Number =>
                 value.TryGetInt64(out var integer)
@@ -70,8 +67,7 @@ public static class HandlebarsEmailBinder
             JsonValueKind.True => true,
             JsonValueKind.False => false,
 
-            JsonValueKind.Null
-                or JsonValueKind.Undefined => null,
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
 
             _ => value.GetRawText()
         };

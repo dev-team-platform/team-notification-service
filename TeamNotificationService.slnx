@@ -3,4 +3,8 @@
   <Project Path="TeamNotificationService.Application/TeamNotificationService.Application.csproj" />
   <Project Path="TeamNotificationService.Domain/TeamNotificationService.Domain.csproj" />
   <Project Path="TeamNotificationService.Infrastructure/TeamNotificationService.Infrastructure.csproj" />
+  <Project Path="TeamNotificationService.Api.Tests/TeamNotificationService.Api.Tests.csproj" />
+  <Project Path="TeamNotificationService.Domain.Tests/TeamNotificationService.Domain.Tests.csproj" />
+  <Project Path="TeamNotificationService.Application.Tests/TeamNotificationService.Application.Tests.csproj" />
+  <Project Path="TeamNotificationService.Infrastructure.Tests/TeamNotificationService.Infrastructure.Tests.csproj" />
 </Solution>

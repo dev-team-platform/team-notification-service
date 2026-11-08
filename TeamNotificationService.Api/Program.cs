@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.OpenApi;
 using Serilog;
-using TeamNotificationService.Api.Constants;
 using TeamNotificationService.Api.Extensions;
 using TeamNotificationService.Api.Hubs;
 using TeamNotificationService.Application.Interfaces.Services.Notifications;
@@ -30,7 +29,6 @@ builder.Services.AddAppOptions(builder.Configuration);
 builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddInternalJwtAuthentication(builder.Configuration);
-builder.Services.AddNAppRateLimiter(builder.Configuration);
 builder.Services.AddAuthorization();
 builder.Services.AddApi(builder.Configuration);
 
@@ -118,12 +116,10 @@ if (exposeApiDocs)
 
 app.UseRouting();
 
-app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<NotificationHub>("/api/v1/hubs/notifications")
-    .RequireRateLimiting(RateLimiterPolicies.Default);
+app.MapHub<NotificationHub>("/api/v1/hubs/notifications");
 
 app.Run();

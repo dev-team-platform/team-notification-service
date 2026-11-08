@@ -15,37 +15,61 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
     {
     }
 
-    public async Task<IReadOnlyList<GetLatelyNotificationForUserResponseModel>> FindLatelyForUserAsync(
+    public async Task<IReadOnlyList<GetLatestNotificationForUserResponseModel>> FindLatestForUserAsync(
         string userIdentitySubject,
+        string sourceApp,
+        bool isUnreadOnly,
         CancellationToken cancellationToken = default)
     {
-        var earliestCreatedAt = DateTimeOffset.UtcNow.AddDays(-10);
-        var userNotifications = from recipient in _dbContext.Set<NotificationRecipient>()
-                                join notification in _dbContext.Set<Notification>()
-                                    on recipient.NotificationId equals notification.Id
-                                where recipient.UserIdentitySubject == userIdentitySubject
-                                select new { Recipient = recipient, Notification = notification };
-
-        var queryable = from userNotification in userNotifications
-                        where userNotification.Notification.CreatedAt >= earliestCreatedAt
-                        orderby userNotification.Notification.CreatedAt descending,
-                                userNotification.Notification.Id ascending
-                        select new GetLatelyNotificationForUserResponseModel
-                        {
-                            NotificationId = userNotification.Notification.Id,
-                            Title = userNotification.Notification.Title,
-                            Content = userNotification.Notification.Content,
-                            Data = userNotification.Notification.Data,
-                            CreatedAt = userNotification.Notification.CreatedAt,
-                            IsRead = userNotification.Recipient.IsRead,
-                            ReadAt = userNotification.Recipient.ReadAt
-                        };
+        var earliestSentAt = DateTimeOffset.UtcNow.AddDays(-10);
+        var queryable = BuildLatestForUserQuery(
+            _dbContext.Set<NotificationRecipient>(), _dbContext.Set<Notification>(),
+            userIdentitySubject, sourceApp, isUnreadOnly, earliestSentAt);
 
         return await queryable.AsNoTracking().ToListAsync(cancellationToken);
     }
 
+    internal static IQueryable<GetLatestNotificationForUserResponseModel> BuildLatestForUserQuery(
+        IQueryable<NotificationRecipient> recipients,
+        IQueryable<Notification> notifications,
+        string userIdentitySubject,
+        string sourceApp,
+        bool isUnreadOnly,
+        DateTimeOffset earliestSentAt)
+    {
+        var userNotifications = from recipient in recipients
+                                join notification in notifications
+                                    on recipient.NotificationId equals notification.Id
+                                where recipient.UserIdentitySubject == userIdentitySubject
+                                      && notification.SourceApp == sourceApp
+                                      && (!isUnreadOnly || !recipient.IsRead)
+                                select new
+                                {
+                                    Recipient = recipient,
+                                    Notification = notification,
+                                    SentAt = recipient.UpdatedAt ?? recipient.CreatedAt
+                                };
+
+        return from userNotification in userNotifications
+               where userNotification.SentAt >= earliestSentAt
+               orderby userNotification.SentAt descending,
+                       userNotification.Notification.Id ascending
+               select new GetLatestNotificationForUserResponseModel
+               {
+                   NotificationId = userNotification.Notification.Id,
+                   Title = userNotification.Notification.Title,
+                   Content = userNotification.Notification.Content,
+                   Data = userNotification.Notification.Data,
+                   SentAt = userNotification.SentAt,
+                   IsRead = userNotification.Recipient.IsRead,
+                   ReadAt = userNotification.Recipient.ReadAt
+               };
+
+    }
+
     public async Task<FilterResult<GetAllNotificationsResponseModelItem>> FindAllForUserAsync(
         string userIdentitySubject,
+        string sourceApp,
         FilterQuery<GetAllNotificationsResponseModelItem> query,
         CancellationToken cancellationToken = default)
     {
@@ -53,13 +77,14 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
                         join notification in _dbContext.Set<Notification>()
                             on recipient.NotificationId equals notification.Id
                         where recipient.UserIdentitySubject == userIdentitySubject
+                              && notification.SourceApp == sourceApp
                         select new GetAllNotificationsResponseModelItem
                         {
                             NotificationId = notification.Id,
                             Title = notification.Title,
                             Content = notification.Content,
                             Data = notification.Data,
-                            CreatedAt = notification.CreatedAt,
+                            SentAt = recipient.UpdatedAt ?? recipient.CreatedAt,
                             IsRead = recipient.IsRead,
                             ReadAt = recipient.ReadAt
                         };
@@ -68,7 +93,7 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
         {
             query.SortFields.Add(new SortField
             {
-                FieldName = "createdAt",
+                FieldName = "sentAt",
                 IsAscending = false
             });
         }
